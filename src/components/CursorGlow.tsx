@@ -1,75 +1,40 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 /**
- * Romantic cursor effect: a small heart trail that follows the cursor.
- * Disabled on touch devices.
+ * Heart trail that follows the cursor. Disabled on touch devices.
  */
 export function CursorGlow() {
-  const glowRef = useRef<HTMLDivElement>(null);
   const [trail, setTrail] = useState<Array<{ id: number; x: number; y: number }>>([]);
   const [enabled, setEnabled] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const fine = window.matchMedia("(pointer: fine)").matches;
-    if (!fine) return;
+    if (!window.matchMedia("(pointer: fine)").matches) return;
     setEnabled(true);
 
-    let raf = 0;
     let lastTrail = 0;
     let nextId = 0;
 
     const onMove = (e: MouseEvent) => {
-      const x = e.clientX;
-      const y = e.clientY;
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        if (glowRef.current) {
-          glowRef.current.style.transform = `translate3d(${x - 300}px, ${y - 300}px, 0)`;
-          glowRef.current.style.opacity = "1";
-        }
-      });
       const now = performance.now();
       if (now - lastTrail > 70) {
         lastTrail = now;
         const id = nextId++;
-        setTrail((t) => [...t.slice(-12), { id, x, y }]);
+        setTrail((t) => [...t.slice(-12), { id, x: e.clientX, y: e.clientY }]);
         window.setTimeout(() => {
           setTrail((t) => t.filter((p) => p.id !== id));
         }, 1200);
       }
     };
 
-    const onLeave = () => {
-      if (glowRef.current) glowRef.current.style.opacity = "0";
-    };
-
     window.addEventListener("mousemove", onMove, { passive: true });
-    window.addEventListener("mouseleave", onLeave);
-    return () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseleave", onLeave);
-      cancelAnimationFrame(raf);
-    };
+    return () => window.removeEventListener("mousemove", onMove);
   }, []);
 
   if (!enabled) return null;
 
   return (
     <>
-      {/* Warm glow that follows cursor */}
-      <div
-        ref={glowRef}
-        aria-hidden
-        className="pointer-events-none fixed left-0 top-0 z-[1] h-[600px] w-[600px] opacity-0 mix-blend-multiply transition-opacity duration-300 will-change-transform"
-        style={{
-          background:
-            "radial-gradient(circle, oklch(0.88 0.12 25 / 0.45) 0%, oklch(0.92 0.08 50 / 0.18) 40%, transparent 70%)",
-          filter: "blur(8px)",
-        }}
-      />
-
-      {/* Heart trail */}
       <div className="pointer-events-none fixed inset-0 z-[2]" aria-hidden>
         {trail.map((p, i) => (
           <span
