@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Soft romantic cursor effect:
- * - A large warm radial glow that follows the cursor (fixed, behind content).
- * - A small heart-shaped trail that fades behind the cursor.
- * - Disabled on touch devices.
+ * Romantic cursor effect: a small heart trail that follows the cursor.
+ * Disabled on touch devices.
  */
 export function CursorGlow() {
   const glowRef = useRef<HTMLDivElement>(null);
