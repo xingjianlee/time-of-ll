@@ -51,7 +51,7 @@ export function AnniversaryCounter({ startDate }: Props) {
       </div>
 
       <div className="grid grid-cols-4 items-end gap-6 md:gap-10 px-8 py-6 rounded-2xl bg-card/60 backdrop-blur-sm border border-rose/20 shadow-[0_20px_60px_-30px_oklch(0.4_0.1_20/0.4)]">
-        {cell("Days 天", days, 3)}
+        {cell("Days 天", days, Math.max(2, String(days).length))}
         {cell("Hours 时", hours)}
         {cell("Minutes 分", minutes)}
         {cell("Seconds 秒", seconds)}
