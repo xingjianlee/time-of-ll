@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WishlistRouteImport } from './routes/wishlist'
 import { Route as TimelineRouteImport } from './routes/timeline'
+import { Route as GiftjarRouteImport } from './routes/giftjar'
 import { Route as IndexRouteImport } from './routes/index'
 
 const WishlistRoute = WishlistRouteImport.update({
@@ -23,6 +24,11 @@ const TimelineRoute = TimelineRouteImport.update({
   path: '/timeline',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GiftjarRoute = GiftjarRouteImport.update({
+  id: '/giftjar',
+  path: '/giftjar',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -31,30 +37,34 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/giftjar': typeof GiftjarRoute
   '/timeline': typeof TimelineRoute
   '/wishlist': typeof WishlistRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/giftjar': typeof GiftjarRoute
   '/timeline': typeof TimelineRoute
   '/wishlist': typeof WishlistRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/giftjar': typeof GiftjarRoute
   '/timeline': typeof TimelineRoute
   '/wishlist': typeof WishlistRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/timeline' | '/wishlist'
+  fullPaths: '/' | '/giftjar' | '/timeline' | '/wishlist'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/timeline' | '/wishlist'
-  id: '__root__' | '/' | '/timeline' | '/wishlist'
+  to: '/' | '/giftjar' | '/timeline' | '/wishlist'
+  id: '__root__' | '/' | '/giftjar' | '/timeline' | '/wishlist'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  GiftjarRoute: typeof GiftjarRoute
   TimelineRoute: typeof TimelineRoute
   WishlistRoute: typeof WishlistRoute
 }
@@ -75,6 +85,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TimelineRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/giftjar': {
+      id: '/giftjar'
+      path: '/giftjar'
+      fullPath: '/giftjar'
+      preLoaderRoute: typeof GiftjarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -87,9 +104,20 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  GiftjarRoute: GiftjarRoute,
   TimelineRoute: TimelineRoute,
   WishlistRoute: WishlistRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

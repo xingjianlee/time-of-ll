@@ -23,6 +23,9 @@ export function SiteHeader() {
           <Link to="/wishlist" className={linkClass} activeProps={activeProps}>
             Wishlist
           </Link>
+          <Link to="/giftjar" className={linkClass} activeProps={activeProps}>
+            Gift Jar
+          </Link>
         </nav>
       </div>
     </header>
