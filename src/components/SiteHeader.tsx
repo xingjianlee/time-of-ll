@@ -11,7 +11,7 @@ export function SiteHeader() {
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
         <Link to="/" className="group flex items-center gap-2">
           <Heart className="h-4 w-4 fill-rose text-rose group-hover:animate-heartbeat" />
-          <span className="font-display text-xl text-wine">Time of L&amp;L</span>
+          <span className="font-display text-xl text-wine">Time of Sunny &amp; Felix</span>
         </Link>
         <nav className="flex items-center gap-8">
           <Link to="/" className={linkClass} activeOptions={{ exact: true }} activeProps={activeProps}>

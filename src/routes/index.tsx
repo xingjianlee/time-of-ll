@@ -26,8 +26,8 @@ export const Route = createFileRoute("/")({
   component: HomePage,
 });
 
-// TODO: replace with the real anniversary date
-const ANNIVERSARY = "2022-08-08";
+const ANNIVERSARY = "2026-02-24";
+const NAMES = "Sunny & Felix";
 
 function HomePage() {
   return (
@@ -55,7 +55,7 @@ function HomePage() {
             transition={{ duration: 1, delay: 0.1 }}
             className="mt-6 font-display text-6xl md:text-8xl font-medium text-wine leading-[0.95]"
           >
-            Time of <span className="italic text-rose">L &amp; L</span>
+            Time of <span className="italic text-rose">Sunny &amp; Felix</span>
           </motion.h1>
 
           <motion.p
@@ -101,7 +101,7 @@ function HomePage() {
 
         {/* FOOTER */}
         <footer className="mx-auto max-w-5xl px-6 py-16 text-center">
-          <div className="font-script text-3xl text-rose">— L &amp; L —</div>
+          <div className="font-script text-3xl text-rose">— {NAMES} —</div>
           <p className="mt-2 text-xs uppercase tracking-[0.3em] text-muted-foreground">
             kept with love · since {ANNIVERSARY}
           </p>
