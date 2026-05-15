@@ -20,6 +20,9 @@ export function SiteHeader() {
           <Link to="/timeline" className={linkClass} activeProps={activeProps}>
             Timeline
           </Link>
+          <Link to="/wishlist" className={linkClass} activeProps={activeProps}>
+            Wishlist
+          </Link>
         </nav>
       </div>
     </header>
