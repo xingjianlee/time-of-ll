@@ -1,7 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, Heart, Pencil, Plus, Sparkles, Trash2, X } from "lucide-react";
+import {
+  Camera,
+  Check,
+  Heart,
+  ImagePlus,
+  Pencil,
+  Plus,
+  Sparkles,
+  Trash2,
+  X,
+} from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 
 export const Route = createFileRoute("/wishlist")({
@@ -20,6 +30,7 @@ export const Route = createFileRoute("/wishlist")({
 });
 
 type Owner = "sunny" | "felix";
+type Filter = "todo" | Owner | "done" | "all";
 
 interface Wish {
   id: string;
@@ -27,13 +38,16 @@ interface Wish {
   text: string;
   done: boolean;
   createdAt: number;
+  completedAt?: number;
+  completionNote?: string;
+  completionPhoto?: string; // dataURL, downscaled
 }
 
-const STORAGE_KEY = "snf-wishlist-v1";
+const STORAGE_KEY = "snf-wishlist-v2";
 
 const ownerMeta: Record<
   Owner,
-  { name: string; emoji: string; ring: string; bubble: string; tail: string; chip: string; dot: string }
+  { name: string; emoji: string; ring: string; bubble: string; tail: string; chip: string; dot: string; tint: string }
 > = {
   sunny: {
     name: "Sunny",
@@ -44,6 +58,7 @@ const ownerMeta: Record<
     tail: "bg-[oklch(0.88_0.09_18)]",
     chip: "bg-rose/15 text-rose border border-rose/30",
     dot: "bg-rose",
+    tint: "text-rose",
   },
   felix: {
     name: "Felix",
@@ -55,12 +70,21 @@ const ownerMeta: Record<
     chip:
       "bg-[oklch(0.86_0.08_220)/30] text-[oklch(0.32_0.1_240)] border border-[oklch(0.7_0.1_220)/40]",
     dot: "bg-[oklch(0.6_0.13_230)]",
+    tint: "text-[oklch(0.5_0.13_230)]",
   },
 };
 
 const seed: Wish[] = [
   { id: "s1", owner: "sunny", text: "去看一次北海道的雪", done: false, createdAt: Date.now() - 5e7 },
-  { id: "s2", owner: "felix", text: "一起做一顿超丰盛的早餐", done: true, createdAt: Date.now() - 4e7 },
+  {
+    id: "s2",
+    owner: "felix",
+    text: "一起做一顿超丰盛的早餐",
+    done: true,
+    createdAt: Date.now() - 4e7,
+    completedAt: Date.now() - 2e6,
+    completionNote: "煎蛋有点焦但你说很好吃，那就是世界上最好的早餐。",
+  },
   { id: "s3", owner: "sunny", text: "拍一组复古胶片合照", done: false, createdAt: Date.now() - 3e7 },
   { id: "s4", owner: "felix", text: "周末去看流星雨", done: false, createdAt: Date.now() - 2e7 },
 ];
@@ -77,23 +101,66 @@ function loadWishes(): Wish[] {
   }
 }
 
+/** Resize an image file to fit within max dimension and return a JPEG dataURL. */
+async function fileToDownscaledDataUrl(file: File, max = 720, quality = 0.82): Promise<string> {
+  const dataUrl = await new Promise<string>((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result as string);
+    r.onerror = () => rej(r.error);
+    r.readAsDataURL(file);
+  });
+  const img = await new Promise<HTMLImageElement>((res, rej) => {
+    const i = new Image();
+    i.onload = () => res(i);
+    i.onerror = () => rej(new Error("image load"));
+    i.src = dataUrl;
+  });
+  const scale = Math.min(1, max / Math.max(img.width, img.height));
+  const w = Math.round(img.width * scale);
+  const h = Math.round(img.height * scale);
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return dataUrl;
+  ctx.drawImage(img, 0, 0, w, h);
+  return canvas.toDataURL("image/jpeg", quality);
+}
+
+function fmtDate(ts: number) {
+  const d = new Date(ts);
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(
+    d.getDate(),
+  ).padStart(2, "0")}`;
+}
+function fmtDateTime(ts: number) {
+  const d = new Date(ts);
+  return `${fmtDate(ts)} ${String(d.getHours()).padStart(2, "0")}:${String(
+    d.getMinutes(),
+  ).padStart(2, "0")}`;
+}
+
 function WishlistPage() {
   const [wishes, setWishes] = useState<Wish[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [text, setText] = useState("");
   const [owner, setOwner] = useState<Owner>("sunny");
-  const [filter, setFilter] = useState<"all" | Owner | "done">("all");
+  const [filter, setFilter] = useState<Filter>("todo");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
+  const [completing, setCompleting] = useState<Wish | null>(null);
 
   useEffect(() => {
     setWishes(loadWishes());
     setHydrated(true);
   }, []);
-
   useEffect(() => {
     if (!hydrated) return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(wishes));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(wishes));
+    } catch (e) {
+      console.warn("[wishlist] storage write failed", e);
+    }
   }, [wishes, hydrated]);
 
   const add = () => {
@@ -106,16 +173,12 @@ function WishlistPage() {
     setText("");
   };
 
-  const toggle = (id: string) =>
-    setWishes((w) => w.map((x) => (x.id === id ? { ...x, done: !x.done } : x)));
-
   const remove = (id: string) => setWishes((w) => w.filter((x) => x.id !== id));
 
   const startEdit = (w: Wish) => {
     setEditingId(w.id);
     setEditText(w.text);
   };
-
   const saveEdit = () => {
     if (!editingId) return;
     const v = editText.trim();
@@ -124,18 +187,60 @@ function WishlistPage() {
     setEditingId(null);
   };
 
-  const visible = wishes.filter((w) => {
-    if (filter === "all") return true;
-    if (filter === "done") return w.done;
-    return w.owner === filter;
-  });
+  const reopen = (id: string) =>
+    setWishes((w) =>
+      w.map((x) =>
+        x.id === id
+          ? { ...x, done: false, completedAt: undefined, completionNote: undefined, completionPhoto: undefined }
+          : x,
+      ),
+    );
+
+  const completeWish = (id: string, note: string, photo?: string) => {
+    setWishes((w) =>
+      w.map((x) =>
+        x.id === id
+          ? {
+              ...x,
+              done: true,
+              completedAt: Date.now(),
+              completionNote: note.trim() || undefined,
+              completionPhoto: photo,
+            }
+          : x,
+      ),
+    );
+  };
+
+  const visible = wishes
+    .filter((w) => {
+      if (filter === "todo") return !w.done;
+      if (filter === "done") return w.done;
+      if (filter === "all") return true;
+      // owner filter — only undone for that person
+      return w.owner === filter && !w.done;
+    })
+    .sort((a, b) => {
+      // done items: most recently completed first; todo: newest first
+      if (a.done && b.done) return (b.completedAt ?? 0) - (a.completedAt ?? 0);
+      return b.createdAt - a.createdAt;
+    });
 
   const stats = {
     total: wishes.length,
     done: wishes.filter((w) => w.done).length,
-    sunny: wishes.filter((w) => w.owner === "sunny").length,
-    felix: wishes.filter((w) => w.owner === "felix").length,
+    sunnyTodo: wishes.filter((w) => w.owner === "sunny" && !w.done).length,
+    felixTodo: wishes.filter((w) => w.owner === "felix" && !w.done).length,
+    todo: wishes.filter((w) => !w.done).length,
   };
+
+  const filters: Array<{ key: Filter; label: string; count: number }> = [
+    { key: "todo", label: "未完成", count: stats.todo },
+    { key: "sunny", label: "🌸 Sunny", count: stats.sunnyTodo },
+    { key: "felix", label: "🌊 Felix", count: stats.felixTodo },
+    { key: "done", label: "✓ 已完成", count: stats.done },
+    { key: "all", label: "全部", count: stats.total },
+  ];
 
   return (
     <div className="relative min-h-screen">
@@ -149,16 +254,6 @@ function WishlistPage() {
         <p className="mt-5 font-script text-2xl text-wine/70">
           一个人写下，两个人完成 ♡
         </p>
-
-        <div className="mt-6 inline-flex flex-wrap items-center justify-center gap-3 text-xs uppercase tracking-widest text-muted-foreground">
-          <span>共 {stats.total} 个心愿</span>
-          <span className="opacity-40">·</span>
-          <span className="text-rose">🌸 Sunny {stats.sunny}</span>
-          <span className="opacity-40">·</span>
-          <span className="text-[oklch(0.5_0.13_230)]">🌊 Felix {stats.felix}</span>
-          <span className="opacity-40">·</span>
-          <span>已完成 {stats.done}</span>
-        </div>
       </section>
 
       {/* Composer */}
@@ -179,9 +274,7 @@ function WishlistPage() {
                     key={o}
                     onClick={() => setOwner(o)}
                     className={`px-4 py-1.5 text-sm rounded-full transition ${
-                      active
-                        ? "bg-cream shadow text-wine"
-                        : "text-muted-foreground hover:text-wine"
+                      active ? "bg-cream shadow text-wine" : "text-muted-foreground hover:text-wine"
                     }`}
                   >
                     <span className="mr-1">{m.emoji}</span>
@@ -212,24 +305,29 @@ function WishlistPage() {
 
         {/* Filter */}
         <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-xs">
-          {([
-            ["all", "全部"],
-            ["sunny", "🌸 Sunny"],
-            ["felix", "🌊 Felix"],
-            ["done", "✓ 已完成"],
-          ] as const).map(([k, label]) => (
-            <button
-              key={k}
-              onClick={() => setFilter(k)}
-              className={`rounded-full border px-3 py-1.5 uppercase tracking-widest transition ${
-                filter === k
-                  ? "border-rose bg-rose text-primary-foreground"
-                  : "border-border bg-background/60 text-muted-foreground hover:text-wine hover:border-rose/40"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+          {filters.map(({ key, label, count }) => {
+            const active = filter === key;
+            return (
+              <button
+                key={key}
+                onClick={() => setFilter(key)}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 uppercase tracking-widest transition ${
+                  active
+                    ? "border-rose bg-rose text-primary-foreground"
+                    : "border-border bg-background/60 text-muted-foreground hover:text-wine hover:border-rose/40"
+                }`}
+              >
+                {label}
+                <span
+                  className={`rounded-full px-1.5 py-px text-[10px] tracking-normal ${
+                    active ? "bg-cream/30 text-primary-foreground" : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </section>
 
@@ -242,127 +340,348 @@ function WishlistPage() {
         ) : (
           <ul className="space-y-5">
             <AnimatePresence initial={false}>
-              {visible.map((w) => {
-                const m = ownerMeta[w.owner];
-                const isFelix = w.owner === "felix";
-                const editing = editingId === w.id;
-
-                return (
-                  <motion.li
-                    key={w.id}
-                    layout
-                    initial={{ opacity: 0, y: 12, scale: 0.96 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, x: isFelix ? 40 : -40, scale: 0.9 }}
-                    transition={{ type: "spring", stiffness: 220, damping: 24 }}
-                    className={`flex items-start gap-3 ${isFelix ? "flex-row-reverse" : ""}`}
-                  >
-                    {/* avatar */}
-                    <div
-                      className={`shrink-0 grid h-11 w-11 place-items-center rounded-full bg-cream ring-2 ${m.ring} text-lg shadow-sm`}
-                    >
-                      {m.emoji}
-                    </div>
-
-                    {/* bubble */}
-                    <div className={`relative max-w-[78%] ${isFelix ? "items-end text-right" : ""}`}>
-                      <div
-                        className={`relative rounded-3xl border px-5 py-3.5 shadow-[0_10px_30px_-15px_oklch(0.4_0.08_30/0.45)] ${m.bubble} ${
-                          w.done ? "opacity-70" : ""
-                        }`}
-                      >
-                        {/* tail */}
-                        <span
-                          className={`absolute top-4 h-3 w-3 rotate-45 ${m.tail} ${
-                            isFelix ? "-right-1" : "-left-1"
-                          }`}
-                          aria-hidden
-                        />
-                        <div
-                          className={`mb-1 flex items-center gap-2 text-[10px] uppercase tracking-widest opacity-70 ${
-                            isFelix ? "justify-end" : ""
-                          }`}
-                        >
-                          <span className={`h-1.5 w-1.5 rounded-full ${m.dot}`} />
-                          {m.name} · {new Date(w.createdAt).toLocaleDateString("zh-CN")}
-                        </div>
-
-                        {editing ? (
-                          <div className="flex items-center gap-2">
-                            <input
-                              autoFocus
-                              value={editText}
-                              onChange={(e) => setEditText(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") saveEdit();
-                                if (e.key === "Escape") setEditingId(null);
-                              }}
-                              className="flex-1 rounded-lg border border-white/40 bg-white/60 px-3 py-1.5 text-sm text-wine outline-none focus:border-wine/40"
-                            />
-                            <button
-                              onClick={saveEdit}
-                              className="rounded-full bg-wine/90 p-1.5 text-cream hover:bg-wine"
-                              aria-label="Save"
-                            >
-                              <Check className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              onClick={() => setEditingId(null)}
-                              className="rounded-full bg-white/70 p-1.5 text-wine hover:bg-white"
-                              aria-label="Cancel"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        ) : (
-                          <p
-                            className={`font-script text-xl leading-snug ${
-                              w.done ? "line-through decoration-wine/50" : ""
-                            }`}
-                          >
-                            {w.text}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* actions */}
-                      {!editing && (
-                        <div
-                          className={`mt-2 flex items-center gap-1 text-xs text-muted-foreground ${
-                            isFelix ? "justify-end" : ""
-                          }`}
-                        >
-                          <button
-                            onClick={() => toggle(w.id)}
-                            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 transition ${m.chip} hover:scale-105`}
-                          >
-                            {w.done ? <Heart className="h-3 w-3 fill-current" /> : <Check className="h-3 w-3" />}
-                            {w.done ? "已完成" : "完成"}
-                          </button>
-                          <button
-                            onClick={() => startEdit(w)}
-                            className="inline-flex items-center gap-1 rounded-full bg-background/60 border border-border px-2.5 py-1 hover:text-wine"
-                          >
-                            <Pencil className="h-3 w-3" />
-                            编辑
-                          </button>
-                          <button
-                            onClick={() => remove(w.id)}
-                            className="inline-flex items-center gap-1 rounded-full bg-background/60 border border-border px-2.5 py-1 hover:text-destructive hover:border-destructive/40"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                            删除
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </motion.li>
-                );
-              })}
+              {visible.map((w) => (
+                <WishRow
+                  key={w.id}
+                  wish={w}
+                  editing={editingId === w.id}
+                  editText={editText}
+                  onEditTextChange={setEditText}
+                  onStartEdit={() => startEdit(w)}
+                  onSaveEdit={saveEdit}
+                  onCancelEdit={() => setEditingId(null)}
+                  onRemove={() => remove(w.id)}
+                  onComplete={() => setCompleting(w)}
+                  onReopen={() => reopen(w.id)}
+                />
+              ))}
             </AnimatePresence>
           </ul>
         )}
       </section>
+
+      {/* Complete dialog */}
+      <AnimatePresence>
+        {completing && (
+          <CompleteDialog
+            wish={completing}
+            onClose={() => setCompleting(null)}
+            onSubmit={(note, photo) => {
+              completeWish(completing.id, note, photo);
+              setCompleting(null);
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
+  );
+}
+
+/* -------------------------------- Row -------------------------------- */
+
+function WishRow(props: {
+  wish: Wish;
+  editing: boolean;
+  editText: string;
+  onEditTextChange: (v: string) => void;
+  onStartEdit: () => void;
+  onSaveEdit: () => void;
+  onCancelEdit: () => void;
+  onRemove: () => void;
+  onComplete: () => void;
+  onReopen: () => void;
+}) {
+  const {
+    wish: w,
+    editing,
+    editText,
+    onEditTextChange,
+    onStartEdit,
+    onSaveEdit,
+    onCancelEdit,
+    onRemove,
+    onComplete,
+    onReopen,
+  } = props;
+
+  const m = ownerMeta[w.owner];
+  const isFelix = w.owner === "felix";
+
+  return (
+    <motion.li
+      layout
+      initial={{ opacity: 0, y: 12, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, x: isFelix ? 40 : -40, scale: 0.9 }}
+      transition={{ type: "spring", stiffness: 220, damping: 24 }}
+      className={`flex items-start gap-3 ${isFelix ? "flex-row-reverse" : ""}`}
+    >
+      <div
+        className={`shrink-0 grid h-11 w-11 place-items-center rounded-full bg-cream ring-2 ${m.ring} text-lg shadow-sm`}
+      >
+        {m.emoji}
+      </div>
+
+      <div className={`relative max-w-[78%] min-w-0 ${isFelix ? "items-end text-right" : ""}`}>
+        <div
+          className={`relative rounded-3xl border px-5 py-3.5 shadow-[0_10px_30px_-15px_oklch(0.4_0.08_30/0.45)] ${m.bubble}`}
+        >
+          <span
+            className={`absolute top-4 h-3 w-3 rotate-45 ${m.tail} ${
+              isFelix ? "-right-1" : "-left-1"
+            }`}
+            aria-hidden
+          />
+          <div
+            className={`mb-1 flex items-center gap-2 text-[10px] uppercase tracking-widest opacity-70 ${
+              isFelix ? "justify-end" : ""
+            }`}
+          >
+            <span className={`h-1.5 w-1.5 rounded-full ${m.dot}`} />
+            {m.name} · {fmtDate(w.createdAt)}
+          </div>
+
+          {editing ? (
+            <div className="flex items-center gap-2">
+              <input
+                autoFocus
+                value={editText}
+                onChange={(e) => onEditTextChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") onSaveEdit();
+                  if (e.key === "Escape") onCancelEdit();
+                }}
+                className="flex-1 rounded-lg border border-white/40 bg-white/60 px-3 py-1.5 text-sm text-wine outline-none focus:border-wine/40"
+              />
+              <button
+                onClick={onSaveEdit}
+                className="rounded-full bg-wine/90 p-1.5 text-cream hover:bg-wine"
+                aria-label="Save"
+              >
+                <Check className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={onCancelEdit}
+                className="rounded-full bg-white/70 p-1.5 text-wine hover:bg-white"
+                aria-label="Cancel"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : (
+            <p className="font-script text-xl leading-snug">{w.text}</p>
+          )}
+
+          {/* Completion record */}
+          {w.done && !editing && (
+            <div className="mt-3 rounded-2xl border border-white/50 bg-white/55 backdrop-blur-sm p-3 text-left">
+              <div
+                className={`mb-1.5 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-widest ${m.tint}`}
+              >
+                <Heart className="h-3 w-3 fill-current" />
+                完成于 {w.completedAt ? fmtDateTime(w.completedAt) : "—"}
+              </div>
+              {w.completionPhoto && (
+                <div className="mb-2 overflow-hidden rounded-lg border border-white/70 shadow-sm">
+                  <img
+                    src={w.completionPhoto}
+                    alt="completion"
+                    loading="lazy"
+                    className="h-44 w-full object-cover"
+                  />
+                </div>
+              )}
+              {w.completionNote && (
+                <p className="font-script text-base leading-snug text-wine/85">
+                  {w.completionNote}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* actions */}
+        {!editing && (
+          <div
+            className={`mt-2 flex flex-wrap items-center gap-1 text-xs text-muted-foreground ${
+              isFelix ? "justify-end" : ""
+            }`}
+          >
+            {w.done ? (
+              <button
+                onClick={onReopen}
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 transition ${m.chip} hover:scale-105`}
+              >
+                <X className="h-3 w-3" />
+                取消完成
+              </button>
+            ) : (
+              <button
+                onClick={onComplete}
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 transition ${m.chip} hover:scale-105`}
+              >
+                <Check className="h-3 w-3" />
+                完成
+              </button>
+            )}
+            <button
+              onClick={onStartEdit}
+              className="inline-flex items-center gap-1 rounded-full bg-background/60 border border-border px-2.5 py-1 hover:text-wine"
+            >
+              <Pencil className="h-3 w-3" />
+              编辑
+            </button>
+            <button
+              onClick={onRemove}
+              className="inline-flex items-center gap-1 rounded-full bg-background/60 border border-border px-2.5 py-1 hover:text-destructive hover:border-destructive/40"
+            >
+              <Trash2 className="h-3 w-3" />
+              删除
+            </button>
+          </div>
+        )}
+      </div>
+    </motion.li>
+  );
+}
+
+/* ----------------------------- Complete Dialog ----------------------------- */
+
+function CompleteDialog({
+  wish,
+  onClose,
+  onSubmit,
+}: {
+  wish: Wish;
+  onClose: () => void;
+  onSubmit: (note: string, photo?: string) => void;
+}) {
+  const [note, setNote] = useState("");
+  const [photo, setPhoto] = useState<string | undefined>(undefined);
+  const [busy, setBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const m = ownerMeta[wish.owner];
+
+  const onPick = async (file?: File | null) => {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const url = await fileToDownscaledDataUrl(file);
+      setPhoto(url);
+    } catch (e) {
+      console.warn(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-wine/60 backdrop-blur-sm p-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.92, y: 20, opacity: 0 }}
+        animate={{ scale: 1, y: 0, opacity: 1 }}
+        exit={{ scale: 0.92, y: 10, opacity: 0 }}
+        transition={{ type: "spring", stiffness: 240, damping: 24 }}
+        className="w-full max-w-md rounded-3xl border border-rose/20 bg-card p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-1 flex items-center justify-between">
+          <div className={`inline-flex items-center gap-2 text-xs uppercase tracking-widest ${m.tint}`}>
+            <Heart className="h-3.5 w-3.5 fill-current" />
+            记录这次完成
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-wine"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <h3 className="mt-2 font-display text-2xl text-wine leading-tight">
+          {wish.text}
+        </h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          完成时间将记录为 <span className="font-medium text-wine">{fmtDateTime(Date.now())}</span>
+        </p>
+
+        <label className="mt-5 block text-xs uppercase tracking-widest text-muted-foreground">
+          这一刻想说什么
+        </label>
+        <textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          rows={3}
+          placeholder="一句话留住此刻的心情…"
+          className="mt-1.5 w-full resize-none rounded-2xl border border-rose/20 bg-background/70 px-4 py-3 text-sm font-script text-wine outline-none focus:border-rose/50 focus:ring-2 focus:ring-rose/20"
+        />
+
+        <div className="mt-4">
+          <label className="block text-xs uppercase tracking-widest text-muted-foreground">
+            小照片（可选）
+          </label>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => onPick(e.target.files?.[0])}
+          />
+
+          {photo ? (
+            <div className="mt-2 group relative overflow-hidden rounded-2xl border border-rose/20">
+              <img src={photo} alt="preview" className="h-48 w-full object-cover" />
+              <button
+                onClick={() => setPhoto(undefined)}
+                className="absolute right-2 top-2 rounded-full bg-cream/90 p-1.5 text-wine opacity-0 group-hover:opacity-100 transition"
+                aria-label="Remove photo"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={() => fileRef.current?.click()}
+                className="absolute left-2 bottom-2 inline-flex items-center gap-1 rounded-full bg-cream/90 px-3 py-1 text-xs text-wine opacity-0 group-hover:opacity-100 transition"
+              >
+                <Camera className="h-3 w-3" /> 重新选择
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={busy}
+              className="mt-2 flex h-28 w-full flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed border-rose/30 bg-background/50 text-sm text-muted-foreground transition hover:border-rose/60 hover:text-wine disabled:opacity-50"
+            >
+              <ImagePlus className="h-5 w-5" />
+              {busy ? "处理中…" : "点击上传一张小照片"}
+            </button>
+          )}
+        </div>
+
+        <div className="mt-6 flex items-center justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="rounded-full px-4 py-2 text-sm text-muted-foreground hover:text-wine"
+          >
+            取消
+          </button>
+          <button
+            onClick={() => onSubmit(note, photo)}
+            className="inline-flex items-center gap-1.5 rounded-full bg-rose px-5 py-2 text-sm text-primary-foreground shadow-md hover:scale-[1.02] transition"
+          >
+            <Check className="h-4 w-4" />
+            完成它 ♡
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }
