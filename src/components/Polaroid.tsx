@@ -77,7 +77,7 @@ export function Polaroid({ photo, size = "md", onExpand }: Props) {
         >
           <div className="flex h-full w-full flex-col">
             <div className="flex items-center justify-between text-xs text-wine/60 uppercase tracking-widest">
-              <span>L &amp; L</span>
+              <span>S &amp; F</span>
               <span>{photo.date}</span>
             </div>
             <div className="my-3 h-px bg-wine/20" />
