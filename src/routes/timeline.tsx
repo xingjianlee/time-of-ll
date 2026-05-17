@@ -5,7 +5,8 @@ import { Check, Heart, Pencil, Plus, Trash2 } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Polaroid } from "@/components/Polaroid";
 import { JournalEditor } from "@/components/JournalEditor";
-import { newId, useTimeline, type TimelineItem } from "@/lib/journal";
+import { useTimeline, type TimelineItem } from "@/lib/journal";
+import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/timeline")({
   head: () => ({
@@ -23,7 +24,9 @@ export const Route = createFileRoute("/timeline")({
 });
 
 function TimelinePage() {
-  const { items, setItems } = useTimeline();
+  const { items, add, update, remove } = useTimeline();
+  const { user } = useAuth();
+  const canEdit = !!user;
   const [editMode, setEditMode] = useState(false);
   const [editing, setEditing] = useState<TimelineItem | null>(null);
   const [creating, setCreating] = useState(false);
@@ -38,13 +41,15 @@ function TimelinePage() {
         <p className="mt-5 font-script text-2xl text-wine/70">
           一条慢慢生长的小路，每一颗心都是我们去过的地方。
         </p>
-        <button
-          onClick={() => setEditMode((v) => !v)}
-          className="mt-6 inline-flex items-center gap-1.5 rounded-full border border-rose/40 bg-cream/70 px-4 py-1.5 text-xs uppercase tracking-widest text-rose hover:bg-cream"
-        >
-          {editMode ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
-          {editMode ? "完成" : "编辑模式"}
-        </button>
+        {canEdit && (
+          <button
+            onClick={() => setEditMode((v) => !v)}
+            className="mt-6 inline-flex items-center gap-1.5 rounded-full border border-rose/40 bg-cream/70 px-4 py-1.5 text-xs uppercase tracking-widest text-rose hover:bg-cream"
+          >
+            {editMode ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+            {editMode ? "完成" : "编辑模式"}
+          </button>
+        )}
       </section>
 
       <section className="relative mx-auto max-w-5xl px-4 pb-32">
@@ -90,7 +95,7 @@ function TimelinePage() {
                   </h3>
                   <p className="mt-4 leading-relaxed text-wine/75">{entry.story}</p>
 
-                  {editMode && (
+                  {canEdit && editMode && (
                     <div className="mt-4 flex gap-2 md:justify-end">
                       <button
                         onClick={() => setEditing(entry)}
@@ -100,9 +105,7 @@ function TimelinePage() {
                       </button>
                       <button
                         onClick={() => {
-                          if (confirm("删除这段时光？")) {
-                            setItems((arr) => arr.filter((x) => x.id !== entry.id));
-                          }
+                          if (confirm("删除这段时光？")) void remove(entry.id);
                         }}
                         className="inline-flex items-center gap-1 rounded-full border border-rose/30 bg-cream/80 px-3 py-1 text-xs text-rose hover:bg-cream"
                       >
@@ -142,11 +145,9 @@ function TimelinePage() {
         }}
         onSave={(data) => {
           if (editing) {
-            setItems((arr) =>
-              arr.map((x) => (x.id === editing.id ? { ...x, ...(data as TimelineItem) } : x)),
-            );
+            void update(editing.id, data as Partial<TimelineItem>);
           } else {
-            setItems((arr) => [...arr, { ...(data as TimelineItem), id: newId() }]);
+            void add(data as Omit<TimelineItem, "id">);
           }
         }}
       />

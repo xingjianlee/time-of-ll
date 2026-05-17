@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ImagePlus, X, Loader2 } from "lucide-react";
-import { fileToDataUrl } from "@/lib/journal";
+import { uploadImage } from "@/lib/journal";
 import type { PhotoItem, TimelineItem } from "@/lib/journal";
 
 type Kind = "photo" | "timeline";
@@ -46,10 +46,11 @@ export function JournalEditor({ open, kind, initial, onClose, onSave }: Props) {
     if (!file) return;
     setUploading(true);
     try {
-      const url = await fileToDataUrl(file);
+      const url = await uploadImage(file);
       upd("src", url);
     } catch (e) {
       console.warn("upload failed", e);
+      alert("图片上传失败：" + (e instanceof Error ? e.message : String(e)));
     } finally {
       setUploading(false);
     }
