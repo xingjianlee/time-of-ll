@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Gift,
@@ -10,10 +10,11 @@ import {
   Tag,
   Trash2,
   X,
-  Check,
   PackageOpen,
 } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
+import { useGifts, type GiftItem, type GiftOwner, type GiftRecipient } from "@/lib/journal";
+import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/giftjar")({
   head: () => ({
