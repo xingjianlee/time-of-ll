@@ -10,7 +10,6 @@ import {
 
 import appCss from "../styles.css?url";
 import { CursorGlow } from "@/components/CursorGlow";
-import { AuthProvider } from "@/lib/auth";
 
 function NotFoundComponent() {
   return (
@@ -75,13 +74,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
+      { name: "description", content: "Our Love Storybook is a personalized digital journal for couples to record memories." },
       { name: "author", content: "Lovable" },
       { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { property: "og:description", content: "Our Love Storybook is a personalized digital journal for couples to record memories." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "Lovable App" },
+      { name: "twitter:description", content: "Our Love Storybook is a personalized digital journal for couples to record memories." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/9663fa0b-b0f8-4515-b21e-d73195062248/id-preview-4f1726b3--075fdb34-f069-466c-987b-8a80c742f980.lovable.app-1779028056123.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/9663fa0b-b0f8-4515-b21e-d73195062248/id-preview-4f1726b3--075fdb34-f069-466c-987b-8a80c742f980.lovable.app-1779028056123.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -118,10 +121,8 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <CursorGlow />
-        <Outlet />
-      </AuthProvider>
+      <CursorGlow />
+      <Outlet />
     </QueryClientProvider>
   );
 }
