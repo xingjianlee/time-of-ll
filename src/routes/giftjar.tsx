@@ -31,22 +31,11 @@ export const Route = createFileRoute("/giftjar")({
   component: GiftJarPage,
 });
 
-type Owner = "sunny" | "felix";
-type Recipient = "sunny" | "felix" | "both";
+type Owner = GiftOwner;
+type Recipient = GiftRecipient;
 type Filter = "all" | "sunny" | "felix" | "given";
 
-interface GiftIdea {
-  id: string;
-  owner: Owner; // who wrote it
-  recipient: Recipient; // who it's for
-  title: string;
-  note?: string;
-  tags: string[];
-  price?: string;
-  given: boolean;
-  givenAt?: number;
-  createdAt: number;
-}
+type GiftIdea = GiftItem;
 
 const STORAGE_KEY = "snf-giftjar-v1";
 
