@@ -431,39 +431,41 @@ function GiftCard({
       </div>
 
       {/* actions */}
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        {g.given ? (
+      {canEdit && (
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          {g.given ? (
+            <button
+              onClick={onUnmark}
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] transition ${m.chip} hover:scale-105`}
+            >
+              <X className="h-3 w-3" />
+              取消送出
+            </button>
+          ) : (
+            <button
+              onClick={onMarkGiven}
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] transition ${m.chip} hover:scale-105`}
+            >
+              <Gift className="h-3 w-3" />
+              标记已送
+            </button>
+          )}
           <button
-            onClick={onUnmark}
-            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] transition ${m.chip} hover:scale-105`}
+            onClick={onEdit}
+            className="inline-flex items-center gap-1 rounded-full bg-background/60 border border-border px-2.5 py-1 text-[10px] text-muted-foreground hover:text-wine transition"
           >
-            <X className="h-3 w-3" />
-            取消送出
+            <Pencil className="h-3 w-3" />
+            编辑
           </button>
-        ) : (
           <button
-            onClick={onMarkGiven}
-            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] transition ${m.chip} hover:scale-105`}
+            onClick={onRemove}
+            className="inline-flex items-center gap-1 rounded-full bg-background/60 border border-border px-2.5 py-1 text-[10px] text-muted-foreground hover:text-destructive hover:border-destructive/40 transition"
           >
-            <Gift className="h-3 w-3" />
-            标记已送
+            <Trash2 className="h-3 w-3" />
+            删除
           </button>
-        )}
-        <button
-          onClick={onEdit}
-          className="inline-flex items-center gap-1 rounded-full bg-background/60 border border-border px-2.5 py-1 text-[10px] text-muted-foreground hover:text-wine transition"
-        >
-          <Pencil className="h-3 w-3" />
-          编辑
-        </button>
-        <button
-          onClick={onRemove}
-          className="inline-flex items-center gap-1 rounded-full bg-background/60 border border-border px-2.5 py-1 text-[10px] text-muted-foreground hover:text-destructive hover:border-destructive/40 transition"
-        >
-          <Trash2 className="h-3 w-3" />
-          删除
-        </button>
-      </div>
+        </div>
+      )}
     </motion.div>
   );
 }
