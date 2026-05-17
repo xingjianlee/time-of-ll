@@ -5,7 +5,8 @@ import { Check, Heart, Pencil, Plus, Trash2 } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Polaroid } from "@/components/Polaroid";
 import { JournalEditor } from "@/components/JournalEditor";
-import { newId, useTimeline, type TimelineItem } from "@/lib/journal";
+import { useTimeline, type TimelineItem } from "@/lib/journal";
+import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/timeline")({
   head: () => ({

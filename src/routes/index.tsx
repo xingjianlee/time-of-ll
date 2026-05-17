@@ -105,20 +105,22 @@ function HomePage() {
             <p className="mt-3 text-sm text-muted-foreground">
               点击翻转看背面 · 双击放大查看
             </p>
-            <button
-              onClick={() => setEditMode((v) => !v)}
-              className="mt-5 inline-flex items-center gap-1.5 rounded-full border border-rose/40 bg-cream/70 px-4 py-1.5 text-xs uppercase tracking-widest text-rose hover:bg-cream"
-            >
-              {editMode ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
-              {editMode ? "完成" : "编辑模式"}
-            </button>
+            {canEdit && (
+              <button
+                onClick={() => setEditMode((v) => !v)}
+                className="mt-5 inline-flex items-center gap-1.5 rounded-full border border-rose/40 bg-cream/70 px-4 py-1.5 text-xs uppercase tracking-widest text-rose hover:bg-cream"
+              >
+                {editMode ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+                {editMode ? "完成" : "编辑模式"}
+              </button>
+            )}
           </div>
           <PolaroidWall
             photos={items}
-            editable={editMode}
+            editable={canEdit && editMode}
             onAdd={() => setCreating(true)}
             onEdit={(p) => setEditing(p)}
-            onDelete={(p) => setItems((arr) => arr.filter((x) => x.id !== p.id))}
+            onDelete={(p) => void remove(p.id)}
           />
         </section>
 
@@ -132,11 +134,9 @@ function HomePage() {
           }}
           onSave={(data) => {
             if (editing) {
-              setItems((arr) =>
-                arr.map((x) => (x.id === editing.id ? { ...x, ...(data as PhotoItem) } : x)),
-              );
+              void update(editing.id, data as Partial<PhotoItem>);
             } else {
-              setItems((arr) => [{ ...(data as PhotoItem), id: newId() }, ...arr]);
+              void add(data as Omit<PhotoItem, "id">);
             }
           }}
         />
