@@ -107,10 +107,11 @@ function fmtDate(ts: number) {
 }
 
 function GiftJarPage() {
-  const [gifts, setGifts] = useState<GiftIdea[]>([]);
-  const [hydrated, setHydrated] = useState(false);
-  const [open, setOpen] = useState(false);
+  const { items: gifts, add: addGift, update: updateGift, remove: removeGift } = useGifts();
+  const { user } = useAuth();
+  const canEdit = !!user;
 
+  const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [note, setNote] = useState("");
   const [owner, setOwner] = useState<Owner>("sunny");
@@ -121,19 +122,6 @@ function GiftJarPage() {
 
   const [filter, setFilter] = useState<Filter>("all");
   const [editingId, setEditingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    setGifts(loadGifts());
-    setHydrated(true);
-  }, []);
-  useEffect(() => {
-    if (!hydrated) return;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(gifts));
-    } catch (e) {
-      console.warn("[giftjar] storage write failed", e);
-    }
-  }, [gifts, hydrated]);
 
   const resetForm = () => {
     setTitle("");
@@ -147,11 +135,13 @@ function GiftJarPage() {
   };
 
   const startAdd = () => {
+    if (!canEdit) return;
     resetForm();
     setOpen(true);
   };
 
   const startEdit = (g: GiftIdea) => {
+    if (!canEdit) return;
     setEditingId(g.id);
     setTitle(g.title);
     setNote(g.note || "");
@@ -174,53 +164,37 @@ function GiftJarPage() {
   const save = () => {
     const v = title.trim();
     if (!v) return;
+    const payload = {
+      owner,
+      recipient,
+      title: v,
+      note: note.trim() || undefined,
+      price: price.trim() || undefined,
+      tags,
+    };
     if (editingId) {
-      setGifts((prev) =>
-        prev.map((g) =>
-          g.id === editingId
-            ? {
-                ...g,
-                title: v,
-                note: note.trim() || undefined,
-                owner,
-                recipient,
-                price: price.trim() || undefined,
-                tags,
-              }
-            : g,
-        ),
-      );
+      void updateGift(editingId, payload);
     } else {
-      setGifts((prev) => [
-        {
-          id: crypto.randomUUID(),
-          owner,
-          recipient,
-          title: v,
-          note: note.trim() || undefined,
-          price: price.trim() || undefined,
-          tags,
-          given: false,
-          createdAt: Date.now(),
-        },
-        ...prev,
-      ]);
+      void addGift(payload);
     }
     setOpen(false);
     resetForm();
   };
 
-  const remove = (id: string) => setGifts((prev) => prev.filter((g) => g.id !== id));
+  const remove = (id: string) => {
+    if (!canEdit) return;
+    void removeGift(id);
+  };
 
-  const markGiven = (id: string) =>
-    setGifts((prev) =>
-      prev.map((g) =>
-        g.id === id ? { ...g, given: true, givenAt: Date.now() } : g,
-      ),
-    );
+  const markGiven = (id: string) => {
+    if (!canEdit) return;
+    void updateGift(id, { given: true, givenAt: Date.now() });
+  };
 
-  const unmarkGiven = (id: string) =>
-    setGifts((prev) => prev.map((g) => (g.id === id ? { ...g, given: false, givenAt: undefined } : g)));
+  const unmarkGiven = (id: string) => {
+    if (!canEdit) return;
+    void updateGift(id, { given: false, givenAt: undefined });
+  };
 
   const visible = gifts
     .filter((g) => {
