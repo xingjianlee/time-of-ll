@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Camera,
@@ -13,6 +13,8 @@ import {
   X,
 } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
+import { useWishes, uploadImage, type WishItem, type WishOwner } from "@/lib/journal";
+import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/wishlist")({
   head: () => ({
