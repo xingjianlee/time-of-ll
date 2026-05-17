@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Camera,
@@ -13,6 +13,8 @@ import {
   X,
 } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
+import { useWishes, uploadImage, type WishItem, type WishOwner } from "@/lib/journal";
+import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/wishlist")({
   head: () => ({
@@ -29,21 +31,9 @@ export const Route = createFileRoute("/wishlist")({
   component: WishlistPage,
 });
 
-type Owner = "sunny" | "felix";
+type Owner = WishOwner;
 type Filter = "todo" | Owner | "done" | "all";
-
-interface Wish {
-  id: string;
-  owner: Owner;
-  text: string;
-  done: boolean;
-  createdAt: number;
-  completedAt?: number;
-  completionNote?: string;
-  completionPhoto?: string; // dataURL, downscaled
-}
-
-const STORAGE_KEY = "snf-wishlist-v2";
+type Wish = WishItem;
 
 const ownerMeta: Record<
   Owner,
@@ -74,59 +64,6 @@ const ownerMeta: Record<
   },
 };
 
-const seed: Wish[] = [
-  { id: "s1", owner: "sunny", text: "去看一次北海道的雪", done: false, createdAt: Date.now() - 5e7 },
-  {
-    id: "s2",
-    owner: "felix",
-    text: "一起做一顿超丰盛的早餐",
-    done: true,
-    createdAt: Date.now() - 4e7,
-    completedAt: Date.now() - 2e6,
-    completionNote: "煎蛋有点焦但你说很好吃，那就是世界上最好的早餐。",
-  },
-  { id: "s3", owner: "sunny", text: "拍一组复古胶片合照", done: false, createdAt: Date.now() - 3e7 },
-  { id: "s4", owner: "felix", text: "周末去看流星雨", done: false, createdAt: Date.now() - 2e7 },
-];
-
-function loadWishes(): Wish[] {
-  if (typeof window === "undefined") return seed;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return seed;
-    const parsed = JSON.parse(raw) as Wish[];
-    return Array.isArray(parsed) ? parsed : seed;
-  } catch {
-    return seed;
-  }
-}
-
-/** Resize an image file to fit within max dimension and return a JPEG dataURL. */
-async function fileToDownscaledDataUrl(file: File, max = 720, quality = 0.82): Promise<string> {
-  const dataUrl = await new Promise<string>((res, rej) => {
-    const r = new FileReader();
-    r.onload = () => res(r.result as string);
-    r.onerror = () => rej(r.error);
-    r.readAsDataURL(file);
-  });
-  const img = await new Promise<HTMLImageElement>((res, rej) => {
-    const i = new Image();
-    i.onload = () => res(i);
-    i.onerror = () => rej(new Error("image load"));
-    i.src = dataUrl;
-  });
-  const scale = Math.min(1, max / Math.max(img.width, img.height));
-  const w = Math.round(img.width * scale);
-  const h = Math.round(img.height * scale);
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return dataUrl;
-  ctx.drawImage(img, 0, 0, w, h);
-  return canvas.toDataURL("image/jpeg", quality);
-}
-
 function fmtDate(ts: number) {
   const d = new Date(ts);
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(
@@ -141,8 +78,10 @@ function fmtDateTime(ts: number) {
 }
 
 function WishlistPage() {
-  const [wishes, setWishes] = useState<Wish[]>([]);
-  const [hydrated, setHydrated] = useState(false);
+  const { items: wishes, add: addWish, update: updateWish, remove: removeWish } = useWishes();
+  const { user } = useAuth();
+  const canEdit = !!user;
+
   const [text, setText] = useState("");
   const [owner, setOwner] = useState<Owner>("sunny");
   const [filter, setFilter] = useState<Filter>("todo");
@@ -150,32 +89,20 @@ function WishlistPage() {
   const [editText, setEditText] = useState("");
   const [completing, setCompleting] = useState<Wish | null>(null);
 
-  useEffect(() => {
-    setWishes(loadWishes());
-    setHydrated(true);
-  }, []);
-  useEffect(() => {
-    if (!hydrated) return;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(wishes));
-    } catch (e) {
-      console.warn("[wishlist] storage write failed", e);
-    }
-  }, [wishes, hydrated]);
-
   const add = () => {
     const v = text.trim();
-    if (!v) return;
-    setWishes((w) => [
-      { id: crypto.randomUUID(), owner, text: v, done: false, createdAt: Date.now() },
-      ...w,
-    ]);
+    if (!v || !canEdit) return;
+    void addWish(owner, v);
     setText("");
   };
 
-  const remove = (id: string) => setWishes((w) => w.filter((x) => x.id !== id));
+  const remove = (id: string) => {
+    if (!canEdit) return;
+    void removeWish(id);
+  };
 
   const startEdit = (w: Wish) => {
+    if (!canEdit) return;
     setEditingId(w.id);
     setEditText(w.text);
   };
@@ -183,35 +110,28 @@ function WishlistPage() {
     if (!editingId) return;
     const v = editText.trim();
     if (!v) return;
-    setWishes((w) => w.map((x) => (x.id === editingId ? { ...x, text: v } : x)));
+    void updateWish(editingId, { text: v });
     setEditingId(null);
   };
 
-  const reopen = (id: string) =>
-    setWishes((w) =>
-      w.map((x) =>
-        x.id === id
-          ? { ...x, done: false, completedAt: undefined, completionNote: undefined, completionPhoto: undefined }
-          : x,
-      ),
-    );
-
-  const completeWish = (id: string, note: string, photo?: string) => {
-    setWishes((w) =>
-      w.map((x) =>
-        x.id === id
-          ? {
-              ...x,
-              done: true,
-              completedAt: Date.now(),
-              completionNote: note.trim() || undefined,
-              completionPhoto: photo,
-            }
-          : x,
-      ),
-    );
+  const reopen = (id: string) => {
+    if (!canEdit) return;
+    void updateWish(id, {
+      done: false,
+      completedAt: undefined,
+      completionNote: undefined,
+      completionPhoto: undefined,
+    });
   };
 
+  const completeWish = (id: string, note: string, photo?: string) => {
+    void updateWish(id, {
+      done: true,
+      completedAt: Date.now(),
+      completionNote: note.trim() || undefined,
+      completionPhoto: photo,
+    });
+  };
   const visible = wishes
     .filter((w) => {
       if (filter === "todo") return !w.done;
@@ -256,8 +176,9 @@ function WishlistPage() {
         </p>
       </section>
 
-      {/* Composer */}
+      {/* Composer (only when signed in) */}
       <section className="mx-auto max-w-3xl px-6">
+        {canEdit && (
         <div className="rounded-2xl border border-rose/20 bg-card/70 backdrop-blur-sm p-5 shadow-[0_20px_60px_-30px_oklch(0.4_0.1_20/0.4)]">
           <div className="mb-3 flex flex-wrap items-center gap-2 text-xs uppercase tracking-widest text-muted-foreground">
             <Sparkles className="h-3.5 w-3.5 text-rose" />
@@ -302,6 +223,7 @@ function WishlistPage() {
             </button>
           </div>
         </div>
+        )}
 
         {/* Filter */}
         <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-xs">
@@ -344,6 +266,7 @@ function WishlistPage() {
                 <WishRow
                   key={w.id}
                   wish={w}
+                  canEdit={canEdit}
                   editing={editingId === w.id}
                   editText={editText}
                   onEditTextChange={setEditText}
@@ -381,6 +304,7 @@ function WishlistPage() {
 
 function WishRow(props: {
   wish: Wish;
+  canEdit: boolean;
   editing: boolean;
   editText: string;
   onEditTextChange: (v: string) => void;
@@ -393,6 +317,7 @@ function WishRow(props: {
 }) {
   const {
     wish: w,
+    canEdit,
     editing,
     editText,
     onEditTextChange,
@@ -501,7 +426,7 @@ function WishRow(props: {
         </div>
 
         {/* actions */}
-        {!editing && (
+        {!editing && canEdit && (
           <div
             className={`mt-2 flex flex-wrap items-center gap-1 text-xs text-muted-foreground ${
               isFelix ? "justify-end" : ""
@@ -567,7 +492,7 @@ function CompleteDialog({
     if (!file) return;
     setBusy(true);
     try {
-      const url = await fileToDownscaledDataUrl(file);
+      const url = await uploadImage(file, 1200, 0.82);
       setPhoto(url);
     } catch (e) {
       console.warn(e);

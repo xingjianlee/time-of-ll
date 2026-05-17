@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Gift,
@@ -10,10 +10,11 @@ import {
   Tag,
   Trash2,
   X,
-  Check,
   PackageOpen,
 } from "lucide-react";
 import { SiteHeader } from "@/components/SiteHeader";
+import { useGifts, type GiftItem, type GiftOwner, type GiftRecipient } from "@/lib/journal";
+import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/giftjar")({
   head: () => ({
@@ -30,24 +31,13 @@ export const Route = createFileRoute("/giftjar")({
   component: GiftJarPage,
 });
 
-type Owner = "sunny" | "felix";
-type Recipient = "sunny" | "felix" | "both";
+type Owner = GiftOwner;
+type Recipient = GiftRecipient;
 type Filter = "all" | "sunny" | "felix" | "given";
 
-interface GiftIdea {
-  id: string;
-  owner: Owner; // who wrote it
-  recipient: Recipient; // who it's for
-  title: string;
-  note?: string;
-  tags: string[];
-  price?: string;
-  given: boolean;
-  givenAt?: number;
-  createdAt: number;
-}
+type GiftIdea = GiftItem;
 
-const STORAGE_KEY = "snf-giftjar-v1";
+
 
 const ownerMeta: Record<
   Owner,
@@ -108,63 +98,6 @@ const recipientDot: Record<Recipient, string> = {
   both: "bg-gradient-to-br from-rose to-[oklch(0.6_0.13_230)]",
 };
 
-const seed: GiftIdea[] = [
-  {
-    id: "g1",
-    owner: "sunny",
-    recipient: "felix",
-    title: "手工编织的羊毛围巾",
-    note: "冬天快来了，想给他一个温暖的惊喜",
-    tags: ["手工", "冬天"],
-    price: "200-300",
-    given: false,
-    createdAt: Date.now() - 6e7,
-  },
-  {
-    id: "g2",
-    owner: "felix",
-    recipient: "sunny",
-    title: "她提过喜欢的那个香薰蜡烛",
-    note: "Jo Malone 的英国梨与小苍兰",
-    tags: ["香氛"],
-    price: "500",
-    given: true,
-    givenAt: Date.now() - 1e6,
-    createdAt: Date.now() - 5e7,
-  },
-  {
-    id: "g3",
-    owner: "sunny",
-    recipient: "both",
-    title: "一起去陶艺工坊做一对杯子",
-    note: "可以用一辈子的小东西",
-    tags: ["体验", "纪念"],
-    given: false,
-    createdAt: Date.now() - 3e7,
-  },
-  {
-    id: "g4",
-    owner: "felix",
-    recipient: "sunny",
-    title: "她收藏的绘本列表里缺的那几本",
-    note: "已经悄悄记下来了",
-    tags: ["书籍"],
-    given: false,
-    createdAt: Date.now() - 2e7,
-  },
-];
-
-function loadGifts(): GiftIdea[] {
-  if (typeof window === "undefined") return seed;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return seed;
-    const parsed = JSON.parse(raw) as GiftIdea[];
-    return Array.isArray(parsed) ? parsed : seed;
-  } catch {
-    return seed;
-  }
-}
 
 function fmtDate(ts: number) {
   const d = new Date(ts);
@@ -174,10 +107,11 @@ function fmtDate(ts: number) {
 }
 
 function GiftJarPage() {
-  const [gifts, setGifts] = useState<GiftIdea[]>([]);
-  const [hydrated, setHydrated] = useState(false);
-  const [open, setOpen] = useState(false);
+  const { items: gifts, add: addGift, update: updateGift, remove: removeGift } = useGifts();
+  const { user } = useAuth();
+  const canEdit = !!user;
 
+  const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [note, setNote] = useState("");
   const [owner, setOwner] = useState<Owner>("sunny");
@@ -188,19 +122,6 @@ function GiftJarPage() {
 
   const [filter, setFilter] = useState<Filter>("all");
   const [editingId, setEditingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    setGifts(loadGifts());
-    setHydrated(true);
-  }, []);
-  useEffect(() => {
-    if (!hydrated) return;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(gifts));
-    } catch (e) {
-      console.warn("[giftjar] storage write failed", e);
-    }
-  }, [gifts, hydrated]);
 
   const resetForm = () => {
     setTitle("");
@@ -214,11 +135,13 @@ function GiftJarPage() {
   };
 
   const startAdd = () => {
+    if (!canEdit) return;
     resetForm();
     setOpen(true);
   };
 
   const startEdit = (g: GiftIdea) => {
+    if (!canEdit) return;
     setEditingId(g.id);
     setTitle(g.title);
     setNote(g.note || "");
@@ -241,53 +164,37 @@ function GiftJarPage() {
   const save = () => {
     const v = title.trim();
     if (!v) return;
+    const payload = {
+      owner,
+      recipient,
+      title: v,
+      note: note.trim() || undefined,
+      price: price.trim() || undefined,
+      tags,
+    };
     if (editingId) {
-      setGifts((prev) =>
-        prev.map((g) =>
-          g.id === editingId
-            ? {
-                ...g,
-                title: v,
-                note: note.trim() || undefined,
-                owner,
-                recipient,
-                price: price.trim() || undefined,
-                tags,
-              }
-            : g,
-        ),
-      );
+      void updateGift(editingId, payload);
     } else {
-      setGifts((prev) => [
-        {
-          id: crypto.randomUUID(),
-          owner,
-          recipient,
-          title: v,
-          note: note.trim() || undefined,
-          price: price.trim() || undefined,
-          tags,
-          given: false,
-          createdAt: Date.now(),
-        },
-        ...prev,
-      ]);
+      void addGift(payload);
     }
     setOpen(false);
     resetForm();
   };
 
-  const remove = (id: string) => setGifts((prev) => prev.filter((g) => g.id !== id));
+  const remove = (id: string) => {
+    if (!canEdit) return;
+    void removeGift(id);
+  };
 
-  const markGiven = (id: string) =>
-    setGifts((prev) =>
-      prev.map((g) =>
-        g.id === id ? { ...g, given: true, givenAt: Date.now() } : g,
-      ),
-    );
+  const markGiven = (id: string) => {
+    if (!canEdit) return;
+    void updateGift(id, { given: true, givenAt: Date.now() });
+  };
 
-  const unmarkGiven = (id: string) =>
-    setGifts((prev) => prev.map((g) => (g.id === id ? { ...g, given: false, givenAt: undefined } : g)));
+  const unmarkGiven = (id: string) => {
+    if (!canEdit) return;
+    void updateGift(id, { given: false, givenAt: undefined });
+  };
 
   const visible = gifts
     .filter((g) => {
@@ -333,13 +240,15 @@ function GiftJarPage() {
       {/* Add button + Filters */}
       <section className="mx-auto max-w-4xl px-6">
         <div className="flex flex-col items-center gap-5">
-          <button
-            onClick={startAdd}
-            className="inline-flex items-center gap-2 rounded-full bg-rose px-6 py-3 text-sm text-primary-foreground shadow-md transition hover:scale-[1.02]"
-          >
-            <Plus className="h-4 w-4" />
-            放入一个新心愿
-          </button>
+          {canEdit && (
+            <button
+              onClick={startAdd}
+              className="inline-flex items-center gap-2 rounded-full bg-rose px-6 py-3 text-sm text-primary-foreground shadow-md transition hover:scale-[1.02]"
+            >
+              <Plus className="h-4 w-4" />
+              放入一个新心愿
+            </button>
+          )}
 
           <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
             {filters.map(({ key, label, count }) => {
@@ -382,6 +291,7 @@ function GiftJarPage() {
                 <GiftCard
                   key={g.id}
                   gift={g}
+                  canEdit={canEdit}
                   onEdit={() => startEdit(g)}
                   onRemove={() => remove(g.id)}
                   onMarkGiven={() => markGiven(g.id)}
@@ -429,12 +339,14 @@ function GiftJarPage() {
 
 function GiftCard({
   gift: g,
+  canEdit,
   onEdit,
   onRemove,
   onMarkGiven,
   onUnmark,
 }: {
   gift: GiftIdea;
+  canEdit: boolean;
   onEdit: () => void;
   onRemove: () => void;
   onMarkGiven: () => void;
@@ -519,39 +431,41 @@ function GiftCard({
       </div>
 
       {/* actions */}
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        {g.given ? (
+      {canEdit && (
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          {g.given ? (
+            <button
+              onClick={onUnmark}
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] transition ${m.chip} hover:scale-105`}
+            >
+              <X className="h-3 w-3" />
+              取消送出
+            </button>
+          ) : (
+            <button
+              onClick={onMarkGiven}
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] transition ${m.chip} hover:scale-105`}
+            >
+              <Gift className="h-3 w-3" />
+              标记已送
+            </button>
+          )}
           <button
-            onClick={onUnmark}
-            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] transition ${m.chip} hover:scale-105`}
+            onClick={onEdit}
+            className="inline-flex items-center gap-1 rounded-full bg-background/60 border border-border px-2.5 py-1 text-[10px] text-muted-foreground hover:text-wine transition"
           >
-            <X className="h-3 w-3" />
-            取消送出
+            <Pencil className="h-3 w-3" />
+            编辑
           </button>
-        ) : (
           <button
-            onClick={onMarkGiven}
-            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] transition ${m.chip} hover:scale-105`}
+            onClick={onRemove}
+            className="inline-flex items-center gap-1 rounded-full bg-background/60 border border-border px-2.5 py-1 text-[10px] text-muted-foreground hover:text-destructive hover:border-destructive/40 transition"
           >
-            <Gift className="h-3 w-3" />
-            标记已送
+            <Trash2 className="h-3 w-3" />
+            删除
           </button>
-        )}
-        <button
-          onClick={onEdit}
-          className="inline-flex items-center gap-1 rounded-full bg-background/60 border border-border px-2.5 py-1 text-[10px] text-muted-foreground hover:text-wine transition"
-        >
-          <Pencil className="h-3 w-3" />
-          编辑
-        </button>
-        <button
-          onClick={onRemove}
-          className="inline-flex items-center gap-1 rounded-full bg-background/60 border border-border px-2.5 py-1 text-[10px] text-muted-foreground hover:text-destructive hover:border-destructive/40 transition"
-        >
-          <Trash2 className="h-3 w-3" />
-          删除
-        </button>
-      </div>
+        </div>
+      )}
     </motion.div>
   );
 }
