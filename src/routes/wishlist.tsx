@@ -78,8 +78,10 @@ function fmtDateTime(ts: number) {
 }
 
 function WishlistPage() {
-  const [wishes, setWishes] = useState<Wish[]>([]);
-  const [hydrated, setHydrated] = useState(false);
+  const { items: wishes, add: addWish, update: updateWish, remove: removeWish } = useWishes();
+  const { user } = useAuth();
+  const canEdit = !!user;
+
   const [text, setText] = useState("");
   const [owner, setOwner] = useState<Owner>("sunny");
   const [filter, setFilter] = useState<Filter>("todo");
@@ -87,32 +89,20 @@ function WishlistPage() {
   const [editText, setEditText] = useState("");
   const [completing, setCompleting] = useState<Wish | null>(null);
 
-  useEffect(() => {
-    setWishes(loadWishes());
-    setHydrated(true);
-  }, []);
-  useEffect(() => {
-    if (!hydrated) return;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(wishes));
-    } catch (e) {
-      console.warn("[wishlist] storage write failed", e);
-    }
-  }, [wishes, hydrated]);
-
   const add = () => {
     const v = text.trim();
-    if (!v) return;
-    setWishes((w) => [
-      { id: crypto.randomUUID(), owner, text: v, done: false, createdAt: Date.now() },
-      ...w,
-    ]);
+    if (!v || !canEdit) return;
+    void addWish(owner, v);
     setText("");
   };
 
-  const remove = (id: string) => setWishes((w) => w.filter((x) => x.id !== id));
+  const remove = (id: string) => {
+    if (!canEdit) return;
+    void removeWish(id);
+  };
 
   const startEdit = (w: Wish) => {
+    if (!canEdit) return;
     setEditingId(w.id);
     setEditText(w.text);
   };
@@ -120,35 +110,28 @@ function WishlistPage() {
     if (!editingId) return;
     const v = editText.trim();
     if (!v) return;
-    setWishes((w) => w.map((x) => (x.id === editingId ? { ...x, text: v } : x)));
+    void updateWish(editingId, { text: v });
     setEditingId(null);
   };
 
-  const reopen = (id: string) =>
-    setWishes((w) =>
-      w.map((x) =>
-        x.id === id
-          ? { ...x, done: false, completedAt: undefined, completionNote: undefined, completionPhoto: undefined }
-          : x,
-      ),
-    );
-
-  const completeWish = (id: string, note: string, photo?: string) => {
-    setWishes((w) =>
-      w.map((x) =>
-        x.id === id
-          ? {
-              ...x,
-              done: true,
-              completedAt: Date.now(),
-              completionNote: note.trim() || undefined,
-              completionPhoto: photo,
-            }
-          : x,
-      ),
-    );
+  const reopen = (id: string) => {
+    if (!canEdit) return;
+    void updateWish(id, {
+      done: false,
+      completedAt: undefined,
+      completionNote: undefined,
+      completionPhoto: undefined,
+    });
   };
 
+  const completeWish = (id: string, note: string, photo?: string) => {
+    void updateWish(id, {
+      done: true,
+      completedAt: Date.now(),
+      completionNote: note.trim() || undefined,
+      completionPhoto: photo,
+    });
+  };
   const visible = wishes
     .filter((w) => {
       if (filter === "todo") return !w.done;
