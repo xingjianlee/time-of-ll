@@ -118,8 +118,10 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <CursorGlow />
-      <Outlet />
+      <AuthProvider>
+        <CursorGlow />
+        <Outlet />
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
