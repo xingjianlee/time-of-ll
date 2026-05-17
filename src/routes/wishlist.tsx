@@ -426,7 +426,7 @@ function WishRow(props: {
         </div>
 
         {/* actions */}
-        {!editing && (
+        {!editing && canEdit && (
           <div
             className={`mt-2 flex flex-wrap items-center gap-1 text-xs text-muted-foreground ${
               isFelix ? "justify-end" : ""
