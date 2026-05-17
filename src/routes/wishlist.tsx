@@ -223,6 +223,7 @@ function WishlistPage() {
             </button>
           </div>
         </div>
+        )}
 
         {/* Filter */}
         <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-xs">
