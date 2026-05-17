@@ -339,12 +339,14 @@ function GiftJarPage() {
 
 function GiftCard({
   gift: g,
+  canEdit,
   onEdit,
   onRemove,
   onMarkGiven,
   onUnmark,
 }: {
   gift: GiftIdea;
+  canEdit: boolean;
   onEdit: () => void;
   onRemove: () => void;
   onMarkGiven: () => void;
