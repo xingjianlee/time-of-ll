@@ -10,6 +10,7 @@ import {
 
 import appCss from "../styles.css?url";
 import { CursorGlow } from "@/components/CursorGlow";
+import { AuthProvider } from "@/lib/auth";
 
 function NotFoundComponent() {
   return (
@@ -121,8 +122,10 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <CursorGlow />
-      <Outlet />
+      <AuthProvider>
+        <CursorGlow />
+        <Outlet />
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
