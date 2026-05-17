@@ -7,7 +7,8 @@ import { PolaroidWall } from "@/components/PolaroidWall";
 import { Petals } from "@/components/Petals";
 import { SiteHeader } from "@/components/SiteHeader";
 import { JournalEditor } from "@/components/JournalEditor";
-import { usePhotos, newId, type PhotoItem } from "@/lib/journal";
+import { usePhotos, type PhotoItem } from "@/lib/journal";
+import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -32,7 +33,9 @@ const ANNIVERSARY = "2026-02-24";
 const NAMES = "Sunny & Felix";
 
 function HomePage() {
-  const { items, setItems } = usePhotos();
+  const { items, add, update, remove } = usePhotos();
+  const { user } = useAuth();
+  const canEdit = !!user;
   const [editMode, setEditMode] = useState(false);
   const [editing, setEditing] = useState<PhotoItem | null>(null);
   const [creating, setCreating] = useState(false);
