@@ -291,6 +291,7 @@ function GiftJarPage() {
                 <GiftCard
                   key={g.id}
                   gift={g}
+                  canEdit={canEdit}
                   onEdit={() => startEdit(g)}
                   onRemove={() => remove(g.id)}
                   onMarkGiven={() => markGiven(g.id)}
