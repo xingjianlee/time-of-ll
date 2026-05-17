@@ -1,11 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
 import { motion } from "framer-motion";
-import { Heart, Sparkles } from "lucide-react";
+import { Heart, Pencil, Sparkles, Check } from "lucide-react";
 import { AnniversaryCounter } from "@/components/AnniversaryCounter";
 import { PolaroidWall } from "@/components/PolaroidWall";
 import { Petals } from "@/components/Petals";
 import { SiteHeader } from "@/components/SiteHeader";
-import { photos } from "@/data/photos";
+import { JournalEditor } from "@/components/JournalEditor";
+import { usePhotos, newId, type PhotoItem } from "@/lib/journal";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -30,6 +32,11 @@ const ANNIVERSARY = "2026-02-24";
 const NAMES = "Sunny & Felix";
 
 function HomePage() {
+  const { items, setItems } = usePhotos();
+  const [editMode, setEditMode] = useState(false);
+  const [editing, setEditing] = useState<PhotoItem | null>(null);
+  const [creating, setCreating] = useState(false);
+
   return (
     <div className="relative min-h-screen overflow-hidden">
       <Petals />
@@ -95,9 +102,41 @@ function HomePage() {
             <p className="mt-3 text-sm text-muted-foreground">
               点击翻转看背面 · 双击放大查看
             </p>
+            <button
+              onClick={() => setEditMode((v) => !v)}
+              className="mt-5 inline-flex items-center gap-1.5 rounded-full border border-rose/40 bg-cream/70 px-4 py-1.5 text-xs uppercase tracking-widest text-rose hover:bg-cream"
+            >
+              {editMode ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
+              {editMode ? "完成" : "编辑模式"}
+            </button>
           </div>
-          <PolaroidWall photos={photos} />
+          <PolaroidWall
+            photos={items}
+            editable={editMode}
+            onAdd={() => setCreating(true)}
+            onEdit={(p) => setEditing(p)}
+            onDelete={(p) => setItems((arr) => arr.filter((x) => x.id !== p.id))}
+          />
         </section>
+
+        <JournalEditor
+          open={creating || !!editing}
+          kind="photo"
+          initial={editing}
+          onClose={() => {
+            setCreating(false);
+            setEditing(null);
+          }}
+          onSave={(data) => {
+            if (editing) {
+              setItems((arr) =>
+                arr.map((x) => (x.id === editing.id ? { ...x, ...(data as PhotoItem) } : x)),
+              );
+            } else {
+              setItems((arr) => [{ ...(data as PhotoItem), id: newId() }, ...arr]);
+            }
+          }}
+        />
 
         {/* FOOTER */}
         <footer className="mx-auto max-w-5xl px-6 py-16 text-center">
