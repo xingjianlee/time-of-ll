@@ -133,7 +133,7 @@ function HomePage() {
                 arr.map((x) => (x.id === editing.id ? { ...x, ...(data as PhotoItem) } : x)),
               );
             } else {
-              setItems((arr) => [{ id: newId(), ...(data as PhotoItem) }, ...arr]);
+              setItems((arr) => [{ ...(data as PhotoItem), id: newId() }, ...arr]);
             }
           }}
         />
