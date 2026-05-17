@@ -176,8 +176,9 @@ function WishlistPage() {
         </p>
       </section>
 
-      {/* Composer */}
+      {/* Composer (only when signed in) */}
       <section className="mx-auto max-w-3xl px-6">
+        {canEdit && (
         <div className="rounded-2xl border border-rose/20 bg-card/70 backdrop-blur-sm p-5 shadow-[0_20px_60px_-30px_oklch(0.4_0.1_20/0.4)]">
           <div className="mb-3 flex flex-wrap items-center gap-2 text-xs uppercase tracking-widest text-muted-foreground">
             <Sparkles className="h-3.5 w-3.5 text-rose" />
