@@ -304,6 +304,7 @@ function WishlistPage() {
 
 function WishRow(props: {
   wish: Wish;
+  canEdit: boolean;
   editing: boolean;
   editText: string;
   onEditTextChange: (v: string) => void;
@@ -316,6 +317,7 @@ function WishRow(props: {
 }) {
   const {
     wish: w,
+    canEdit,
     editing,
     editText,
     onEditTextChange,
