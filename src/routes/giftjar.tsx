@@ -240,13 +240,15 @@ function GiftJarPage() {
       {/* Add button + Filters */}
       <section className="mx-auto max-w-4xl px-6">
         <div className="flex flex-col items-center gap-5">
-          <button
-            onClick={startAdd}
-            className="inline-flex items-center gap-2 rounded-full bg-rose px-6 py-3 text-sm text-primary-foreground shadow-md transition hover:scale-[1.02]"
-          >
-            <Plus className="h-4 w-4" />
-            放入一个新心愿
-          </button>
+          {canEdit && (
+            <button
+              onClick={startAdd}
+              className="inline-flex items-center gap-2 rounded-full bg-rose px-6 py-3 text-sm text-primary-foreground shadow-md transition hover:scale-[1.02]"
+            >
+              <Plus className="h-4 w-4" />
+              放入一个新心愿
+            </button>
+          )}
 
           <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
             {filters.map(({ key, label, count }) => {
