@@ -32,6 +32,11 @@ const ANNIVERSARY = "2026-02-24";
 const NAMES = "Sunny & Felix";
 
 function HomePage() {
+  const { items, setItems } = usePhotos();
+  const [editMode, setEditMode] = useState(false);
+  const [editing, setEditing] = useState<PhotoItem | null>(null);
+  const [creating, setCreating] = useState(false);
+
   return (
     <div className="relative min-h-screen overflow-hidden">
       <Petals />
