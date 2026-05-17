@@ -98,63 +98,6 @@ const recipientDot: Record<Recipient, string> = {
   both: "bg-gradient-to-br from-rose to-[oklch(0.6_0.13_230)]",
 };
 
-const seed: GiftIdea[] = [
-  {
-    id: "g1",
-    owner: "sunny",
-    recipient: "felix",
-    title: "手工编织的羊毛围巾",
-    note: "冬天快来了，想给他一个温暖的惊喜",
-    tags: ["手工", "冬天"],
-    price: "200-300",
-    given: false,
-    createdAt: Date.now() - 6e7,
-  },
-  {
-    id: "g2",
-    owner: "felix",
-    recipient: "sunny",
-    title: "她提过喜欢的那个香薰蜡烛",
-    note: "Jo Malone 的英国梨与小苍兰",
-    tags: ["香氛"],
-    price: "500",
-    given: true,
-    givenAt: Date.now() - 1e6,
-    createdAt: Date.now() - 5e7,
-  },
-  {
-    id: "g3",
-    owner: "sunny",
-    recipient: "both",
-    title: "一起去陶艺工坊做一对杯子",
-    note: "可以用一辈子的小东西",
-    tags: ["体验", "纪念"],
-    given: false,
-    createdAt: Date.now() - 3e7,
-  },
-  {
-    id: "g4",
-    owner: "felix",
-    recipient: "sunny",
-    title: "她收藏的绘本列表里缺的那几本",
-    note: "已经悄悄记下来了",
-    tags: ["书籍"],
-    given: false,
-    createdAt: Date.now() - 2e7,
-  },
-];
-
-function loadGifts(): GiftIdea[] {
-  if (typeof window === "undefined") return seed;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return seed;
-    const parsed = JSON.parse(raw) as GiftIdea[];
-    return Array.isArray(parsed) ? parsed : seed;
-  } catch {
-    return seed;
-  }
-}
 
 function fmtDate(ts: number) {
   const d = new Date(ts);
