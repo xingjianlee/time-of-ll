@@ -37,7 +37,7 @@ type Filter = "all" | "sunny" | "felix" | "given";
 
 type GiftIdea = GiftItem;
 
-const STORAGE_KEY = "snf-giftjar-v1";
+
 
 const ownerMeta: Record<
   Owner,
