@@ -266,6 +266,7 @@ function WishlistPage() {
                 <WishRow
                   key={w.id}
                   wish={w}
+                  canEdit={canEdit}
                   editing={editingId === w.id}
                   editText={editText}
                   onEditTextChange={setEditText}
