@@ -1,11 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
 import { motion } from "framer-motion";
-import { Heart, Sparkles } from "lucide-react";
+import { Heart, Pencil, Sparkles, Check } from "lucide-react";
 import { AnniversaryCounter } from "@/components/AnniversaryCounter";
 import { PolaroidWall } from "@/components/PolaroidWall";
 import { Petals } from "@/components/Petals";
 import { SiteHeader } from "@/components/SiteHeader";
-import { photos } from "@/data/photos";
+import { JournalEditor } from "@/components/JournalEditor";
+import { usePhotos, newId, type PhotoItem } from "@/lib/journal";
 
 export const Route = createFileRoute("/")({
   head: () => ({
