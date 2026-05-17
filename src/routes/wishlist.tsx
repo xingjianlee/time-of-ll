@@ -31,21 +31,9 @@ export const Route = createFileRoute("/wishlist")({
   component: WishlistPage,
 });
 
-type Owner = "sunny" | "felix";
+type Owner = WishOwner;
 type Filter = "todo" | Owner | "done" | "all";
-
-interface Wish {
-  id: string;
-  owner: Owner;
-  text: string;
-  done: boolean;
-  createdAt: number;
-  completedAt?: number;
-  completionNote?: string;
-  completionPhoto?: string; // dataURL, downscaled
-}
-
-const STORAGE_KEY = "snf-wishlist-v2";
+type Wish = WishItem;
 
 const ownerMeta: Record<
   Owner,
@@ -75,59 +63,6 @@ const ownerMeta: Record<
     tint: "text-[oklch(0.5_0.13_230)]",
   },
 };
-
-const seed: Wish[] = [
-  { id: "s1", owner: "sunny", text: "去看一次北海道的雪", done: false, createdAt: Date.now() - 5e7 },
-  {
-    id: "s2",
-    owner: "felix",
-    text: "一起做一顿超丰盛的早餐",
-    done: true,
-    createdAt: Date.now() - 4e7,
-    completedAt: Date.now() - 2e6,
-    completionNote: "煎蛋有点焦但你说很好吃，那就是世界上最好的早餐。",
-  },
-  { id: "s3", owner: "sunny", text: "拍一组复古胶片合照", done: false, createdAt: Date.now() - 3e7 },
-  { id: "s4", owner: "felix", text: "周末去看流星雨", done: false, createdAt: Date.now() - 2e7 },
-];
-
-function loadWishes(): Wish[] {
-  if (typeof window === "undefined") return seed;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return seed;
-    const parsed = JSON.parse(raw) as Wish[];
-    return Array.isArray(parsed) ? parsed : seed;
-  } catch {
-    return seed;
-  }
-}
-
-/** Resize an image file to fit within max dimension and return a JPEG dataURL. */
-async function fileToDownscaledDataUrl(file: File, max = 720, quality = 0.82): Promise<string> {
-  const dataUrl = await new Promise<string>((res, rej) => {
-    const r = new FileReader();
-    r.onload = () => res(r.result as string);
-    r.onerror = () => rej(r.error);
-    r.readAsDataURL(file);
-  });
-  const img = await new Promise<HTMLImageElement>((res, rej) => {
-    const i = new Image();
-    i.onload = () => res(i);
-    i.onerror = () => rej(new Error("image load"));
-    i.src = dataUrl;
-  });
-  const scale = Math.min(1, max / Math.max(img.width, img.height));
-  const w = Math.round(img.width * scale);
-  const h = Math.round(img.height * scale);
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return dataUrl;
-  ctx.drawImage(img, 0, 0, w, h);
-  return canvas.toDataURL("image/jpeg", quality);
-}
 
 function fmtDate(ts: number) {
   const d = new Date(ts);
