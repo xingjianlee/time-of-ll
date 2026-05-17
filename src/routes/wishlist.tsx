@@ -487,7 +487,7 @@ function CompleteDialog({
     if (!file) return;
     setBusy(true);
     try {
-      const url = await fileToDownscaledDataUrl(file);
+      const url = await uploadImage(file, 1200, 0.82);
       setPhoto(url);
     } catch (e) {
       console.warn(e);
