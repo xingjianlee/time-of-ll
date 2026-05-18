@@ -26,6 +26,38 @@ export const Route = createFileRoute("/settings")({
   component: SettingsPage,
 });
 
+const input =
+  "w-full rounded-lg border border-wine/15 bg-white/70 px-3 py-2 text-wine outline-none focus:border-rose";
+
+function Card({
+  title,
+  icon: Icon,
+  children,
+}: {
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-3xl border border-rose/20 bg-card/70 backdrop-blur-sm p-7 shadow-[0_20px_60px_-30px_oklch(0.4_0.1_20/0.3)]">
+      <h2 className="mb-5 flex items-center gap-2 font-display text-2xl text-wine">
+        <Icon className="h-5 w-5 text-rose" />
+        {title}
+      </h2>
+      {children}
+    </section>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="text-xs uppercase tracking-widest text-wine/60">{label}</span>
+      <div className="mt-1">{children}</div>
+    </label>
+  );
+}
+
 function SettingsPage() {
   const { user, signOut } = useAuth();
   const { profile, update: updateProfile } = useProfile();
