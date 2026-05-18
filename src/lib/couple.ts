@@ -44,6 +44,42 @@ export interface Notification {
   created_at: string;
 }
 
+const NOTIFICATION_TYPES = new Set<NotificationType>([
+  "couple_invite",
+  "couple_invite_accepted",
+  "couple_invite_declined",
+  "anniversary_milestone",
+  "wish_added",
+  "wish_completed",
+  "gift_added",
+  "gift_given",
+  "photo_added",
+  "timeline_added",
+  "system",
+]);
+
+function normalizeNotification(row: Record<string, unknown>): Notification | null {
+  const id = typeof row.id === "string" ? row.id : "";
+  if (!id) return null;
+  const type = typeof row.type === "string" && NOTIFICATION_TYPES.has(row.type as NotificationType)
+    ? (row.type as NotificationType)
+    : "system";
+  const payload = row.payload && typeof row.payload === "object" && !Array.isArray(row.payload)
+    ? (row.payload as Record<string, unknown>)
+    : {};
+
+  return {
+    id,
+    type,
+    title: typeof row.title === "string" && row.title.trim() ? row.title : "新的通知",
+    body: typeof row.body === "string" ? row.body : "",
+    payload,
+    action_url: typeof row.action_url === "string" ? row.action_url : null,
+    read_at: typeof row.read_at === "string" ? row.read_at : null,
+    created_at: typeof row.created_at === "string" ? row.created_at : new Date().toISOString(),
+  };
+}
+
 export interface InviteOut {
   id: string;
   to_email: string;
@@ -185,7 +221,10 @@ export function useInbox() {
       .order("created_at", { ascending: false })
       .limit(100);
     if (error) console.warn("[inbox] load", error);
-    setItems(((data as Notification[] | null) ?? []) as Notification[]);
+    const normalized = ((data ?? []) as Record<string, unknown>[])
+      .map(normalizeNotification)
+      .filter((n): n is Notification => Boolean(n));
+    setItems(normalized);
     setLoading(false);
   }, [user]);
 
