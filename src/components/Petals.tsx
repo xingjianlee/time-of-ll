@@ -5,11 +5,11 @@ export function Petals({ count = 14 }: { count?: number }) {
     () =>
       Array.from({ length: count }).map((_, i) => ({
         id: i,
-        left: Math.random() * 100,
-        delay: Math.random() * 14,
-        duration: 12 + Math.random() * 10,
-        size: 10 + Math.random() * 14,
-        opacity: 0.5 + Math.random() * 0.4,
+        left: (i * 37 + 11) % 100,
+        delay: (i * 2.7 + 1.3) % 14,
+        duration: 12 + ((i * 5.1 + 3) % 10),
+        size: 10 + ((i * 4.3 + 2) % 14),
+        opacity: 0.5 + (((i * 13) % 40) / 100),
       })),
     [count],
   );
