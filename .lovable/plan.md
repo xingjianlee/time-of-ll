@@ -1,141 +1,120 @@
-# 重构计划：从「专属 L&L」到「所有情侣可用」
+# 数据库重构方案：从「单情侣硬编码」到「多租户情侣平台」
 
-把现在硬编码的 sunny/felix 双人手账，改造成任意情侣都能注册使用的平台。本计划分三步：先做静态页面 → 再落地数据库重置 → 最后接通业务逻辑。
+## 一、要不要新建一个 Supabase 项目？
 
----
+**建议：不要新建，原地重构即可。** 理由：
 
-## 一、本轮要新建/改造的页面（先做静态版）
+1. 当前项目的 auth、storage bucket（`journal`）、env 变量、RLS helper 都已经配好，新建项目意味着重新配置 + 重新上传所有图片 + 重新登录，收益为零。
+2. 业务表只有 4 张（photos / timeline / wishes / gifts），全部是「加字段 + 改 RLS」级别的改造，不是推倒重来。
+3. 你和 felix 现有的数据是有感情价值的，原地迁移可以无缝保留。
 
-### 1. 未登录首页 `/`（公开 Hero）
-- 隐藏 Home/Timeline/Wishlist/Giftjar 导航，只保留 Login / Sign up。
-- 全屏 Hero：品牌名（Time of Us）、一句 slogan、CTA「开始我们的故事」。
-- 滚动展示 3 个产品特性：纪念日计时 / 拍立得墙 / 旅行时光轴。
-- 底部 CTA 注册。
+**唯一应该新建项目的场景**：你想保留现在这个网站作为"私人版"永远只服务你俩，再开一个全新项目做"公开版 SaaS"。如果是这个想法请告诉我，方案会完全不同。
 
-### 2. 登录后首页 `/`
-- 顶栏显示 `Welcome, {displayName}`，导航恢复 Home/Timeline/Wishlist/Giftjar/收信箱/设置。
-- 标题 `Time of {nameA} & {nameB}`、纪念日、那段文案 全部从数据库 `couples` 表读取（未绑定情侣时显示个人占位 + 引导绑定）。
-
-### 3. 设置页 `/settings`
-- 个人信息：昵称、头像、邮箱（只读）。
-- 情侣绑定：
-  - 显示当前情侣状态（未绑定 / 待对方确认 / 已绑定）。
-  - 输入对方邮箱发起绑定邀请；已绑定可解绑。
-- 情侣空间：纪念日日期、首页 slogan 文案、情侣名（A & B 顺序）—— 双方都能改。
-- 危险区：登出、删除账号。
-
-### 4. 收信箱 `/inbox`
-- 通知列表，按时间倒序，未读高亮，可标记已读 / 全部已读。
-- 通知类型：
-  - `couple_invite` — 谁绑定了你（含「同意 / 拒绝」按钮）。
-  - `anniversary_milestone` — 每满 50 天提醒（100、150、200…）。
-  - `wish_added` / `wish_completed` — 对方更新了 wishlist。
-  - `gift_added` / `gift_given` — 对方更新了 giftjar。
-  - `photo_added` / `timeline_added` — 对方加了新回忆。
-- 顶栏铃铛图标显示未读小红点。
+下面默认走「原地重构」。
 
 ---
 
-## 二、数据库重置方案
+## 二、原表要不要重构？要，但是渐进式
 
-现有表 `photos / timeline / wishes / gifts` 使用 `owner enum('sunny','felix')` + 白名单邮箱 + `is_couple()`，无法支撑多情侣，必须重建。
+四张老表 `photos / timeline / wishes / gifts` 的硬伤是同一个：
+- `owner` 是 `enum('sunny','felix')`，把用户身份焊死在两个名字上
+- RLS 用 `is_couple()` 检查邮箱白名单，新用户进不来
+- 没有 `couple_id`，无法区分"哪对情侣的数据"
 
-### 新表结构
+**改造方式（每张表都一样）：**
 
 ```text
-profiles            个人资料（1:1 auth.users）
-  id uuid PK = auth.uid
-  display_name text
-  avatar_url text
-  created_at
+新增字段：
+  couple_id   uuid    references couples(id) on delete cascade
+  owner_user  uuid    references auth.users(id)   -- 替代 owner enum
 
-couples             情侣空间
-  id uuid PK
-  name_a text           显示用名字
-  name_b text
-  anniversary date
-  slogan text           首页文案，默认给一句
-  created_at
+保留字段：
+  created_by  uuid    （已有，不动）
+  其他业务字段（src/caption/text/title/...）全部不动
 
-couple_members      情侣成员（保证一个用户同时只在一个 active 情侣里）
-  couple_id uuid FK
-  user_id uuid FK
-  role 'a' | 'b'
-  PRIMARY KEY (couple_id, user_id)
-  UNIQUE (user_id) WHERE status='active'
-
-couple_invites      绑定邀请
-  id uuid PK
-  from_user uuid
-  to_email text
-  to_user uuid NULL    （对方注册后回填）
-  couple_id uuid       （创建时即生成草稿 couple）
-  status 'pending'|'accepted'|'declined'|'cancelled'
-  created_at
-
-notifications       收信箱
-  id uuid PK
-  user_id uuid         收件人
-  type text
-  payload jsonb        （含 actor、couple_id、wish_id 等）
-  read_at timestamptz NULL
-  created_at
-
-photos / timeline / wishes / gifts
-  把 owner enum 改为 owner_user uuid（指向 auth.users）
-  新增 couple_id uuid FK
-  created_by uuid 保留
+删除字段：
+  owner       partner enum   （迁移完成后 drop）
 ```
 
-### RLS 策略（统一通过 helper 函数）
-
-```sql
--- 当前用户所属的 active 情侣 id
-create function current_couple_id() returns uuid …
--- 当前用户是否属于该 couple
-create function is_member_of(c uuid) returns boolean …
-```
-
-- `profiles`：自己可读写；他人只读 `display_name, avatar_url`。
-- `couples / photos / timeline / wishes / gifts`：`couple_id = current_couple_id()` 时可读写。
-- `couple_invites`：发起人或被邀请邮箱/用户可见。
-- `notifications`：`user_id = auth.uid()` 可读、可标记已读。
-
-### 自动化触发器
-
-- 接受邀请 → 自动写入 `couple_members`、把双方旧数据迁移到新 couple（或丢弃，待你确认）。
-- `wishes / gifts / photos / timeline` insert/update → trigger 给对方写一条 `notifications`。
-- pg_cron 每天 03:00 扫描 couples，若距 anniversary 的天数是 50 的倍数 → 给双方发通知。
-
-### 数据迁移
-
-由于业务模型变化大，**建议直接清空旧数据**（你和 felix 重新登录后会生成新的 couple，再手动重新录入）。如果想保留：可以一次性把现有 photos/timeline/wishes/gifts 全部 owner_user 设为你（sunny）的 uuid，couple_id 设为新建的 sunny+felix couple。
+RLS 全部换成基于 `couple_id = current_couple_id()` 的策略，`is_couple()` 函数和 `partner` enum 在最后一步删除。
 
 ---
 
-## 三、实施顺序
+## 三、新增的表
 
-**Phase 1（本轮，仅前端静态）**
-1. 新增 `/settings`、`/inbox` 路由，全部用 mock 数据。
-2. 改造 `/` 未登录态：Hero + 注册引导。
-3. SiteHeader：登录态切换、加铃铛和「设置」入口、移除硬编码 Sunny&Felix 文案。
-4. 不动数据库，旧 wishlist/giftjar/timeline 继续用旧表跑着（避免破坏现有可用功能）。
+```text
+profiles              个人资料（与 auth.users 1:1）
+  id, display_name, avatar_url, created_at
 
-**Phase 2（确认后）**
-1. 跑新建表 + RLS 迁移。
-2. 写 `useProfile / useCouple / useInbox / useCoupleInvite` hooks。
-3. 把 photos/timeline/wishes/gifts 的 owner 字段切换到 `owner_user + couple_id`。
-4. 开启注册（邮箱/密码 + Google），去掉邮箱白名单。
+couples               情侣空间
+  id, name_a, name_b, anniversary, slogan, created_at
 
-**Phase 3**
-1. 通知触发器 + 50 天纪念日 cron。
-2. 头像上传、解绑流程、删除账号。
+couple_members        成员关系（同一 user 同时只能属于一个 active couple）
+  couple_id, user_id, role('a'|'b'), status, joined_at
+  UNIQUE(user_id) WHERE status='active'
+
+couple_invites        绑定邀请
+  id, from_user, to_email, to_user, couple_id,
+  status('pending'|'accepted'|'declined'|'cancelled'), created_at
+
+notifications         收信箱
+  id, user_id, type, payload jsonb, read_at, created_at
+```
+
+Helper 函数（用 `security definer` 避免 RLS 递归）：
+
+```text
+current_couple_id()         -> uuid   当前用户的 active couple
+is_member_of(c uuid)        -> bool   当前用户是否属于该 couple
+```
 
 ---
 
-## 需要你确认的几点
+## 四、迁移分三步（每一步都可单独 rollback）
 
-1. **注册方式**：邮箱密码 + Google 登录，开放注册（去掉白名单）。可以吗？
-2. **旧数据**：你和 felix 现有的 wishlist/giftjar/photos 是要**保留并迁移**到新结构，还是**清空重来**？
-3. **绑定流程**：用「输入对方邮箱发邀请」就行，还是要再支持「6 位邀请码」？
-4. **Phase 1 范围**：本轮我只做静态页面 + 路由（不动 DB），你检查 UI 满意后再进入 Phase 2，对吗？
+### Step 1：建新表 + 不动旧表（零风险）
+- 创建 profiles / couples / couple_members / couple_invites / notifications
+- 创建 helper 函数 + RLS
+- 给 auth.users 加 trigger：注册时自动建 profile
+- **旧表继续跑，前端无感知**
+
+### Step 2：旧表加字段 + 双写过渡
+- `alter table photos/timeline/wishes/gifts add column couple_id uuid, add column owner_user uuid`
+- 用一次性脚本把你和 felix 的现有数据迁移到一个新的 couple：
+  ```sql
+  -- 伪代码
+  insert into couples(name_a, name_b, anniversary, slogan)
+       values ('Sunny','Felix','2022-08-08','把走过的城市…');
+  insert into couple_members 双方;
+  update photos set couple_id = <新id>,
+         owner_user = case owner when 'sunny' then <sunny_uid>
+                                 when 'felix' then <felix_uid> end;
+  -- timeline / wishes / gifts 同理
+  ```
+- RLS 改成 `couple_id = current_couple_id()`，老的 `is_couple()` policy 删掉
+- 前端 hooks（`usePhotos / useTimeline / useWishes / useGifts`）改成读写 `couple_id + owner_user`，不再用 `ownerForEmail`
+
+### Step 3：清理（确认 Step 2 跑通后）
+- `alter table ... drop column owner`
+- `drop type partner`
+- `drop function is_couple()`
+- 删除 `WHITELIST` 常量
+- 开放注册（去掉邮箱白名单）
+
+---
+
+## 五、自动化（Phase 3，本次重构不必一次性做完）
+
+- `wishes / gifts / photos / timeline` 的 insert/update trigger → 给对方写一条 notification
+- 接受 `couple_invite` trigger → 写 couple_members + 关闭其他 pending 邀请
+- `pg_cron` 每天扫 couples，距 anniversary 是 50 的倍数 → 给双方发通知
+
+---
+
+## 需要你确认的 3 件事
+
+1. **新建 vs 原地**：确认走「原地重构」，不新建 Supabase 项目？
+2. **现有数据**：你和 felix 的 wishlist/giftjar/photos 要**迁移保留**（Step 2 的脚本会处理）还是**直接清空**？
+3. **执行节奏**：我先跑 Step 1（建新表，零风险），还是 Step 1+2 一次性做完？
+
+确认后我会把 SQL migration 和前端 hooks 改造一起提交。
