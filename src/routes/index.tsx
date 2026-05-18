@@ -7,6 +7,7 @@ import { PolaroidWall } from "@/components/PolaroidWall";
 import { Petals } from "@/components/Petals";
 import { SiteHeader } from "@/components/SiteHeader";
 import { JournalEditor } from "@/components/JournalEditor";
+import { PublicHero } from "@/components/PublicHero";
 import { usePhotos, type PhotoItem } from "@/lib/journal";
 import { useAuth } from "@/lib/auth";
 
