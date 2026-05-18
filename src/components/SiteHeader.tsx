@@ -1,18 +1,21 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Heart, LogIn, LogOut, Bell, Settings } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-
-// Phase 1: mock unread count for the inbox bell
-const MOCK_UNREAD = 2;
+import { useProfile } from "@/lib/couple";
+import { useInbox } from "@/lib/couple";
 
 export function SiteHeader() {
-  const { user, owner, signOut } = useAuth();
+  const { user, signOut } = useAuth();
+  const { profile } = useProfile();
+  const { unread } = useInbox();
   const nav = useNavigate();
   const linkClass =
     "relative px-1 text-sm tracking-widest uppercase text-wine/70 transition-colors hover:text-rose";
   const activeProps = { className: linkClass + " text-rose" };
   const iconBtn =
-    "inline-flex items-center justify-center h-8 w-8 rounded-full border border-rose/30 bg-cream/60 text-wine/70 hover:text-rose hover:bg-cream transition";
+    "relative inline-flex items-center justify-center h-8 w-8 rounded-full border border-rose/30 bg-cream/60 text-wine/70 hover:text-rose hover:bg-cream transition";
+
+  const name = profile?.display_name || user?.email?.split("@")[0] || "";
 
   return (
     <header className="relative z-20">
@@ -39,9 +42,9 @@ export function SiteHeader() {
 
               <Link to="/inbox" className={iconBtn} title="收信箱" aria-label="Inbox">
                 <Bell className="h-4 w-4" />
-                {MOCK_UNREAD > 0 && (
-                  <span className="absolute -mt-5 ml-4 h-4 min-w-4 rounded-full bg-rose px-1 text-[10px] leading-4 text-cream text-center">
-                    {MOCK_UNREAD}
+                {unread > 0 && (
+                  <span className="absolute -top-1 -right-1 h-4 min-w-4 rounded-full bg-rose px-1 text-[10px] leading-4 text-cream text-center">
+                    {unread}
                   </span>
                 )}
               </Link>
@@ -53,11 +56,11 @@ export function SiteHeader() {
                   await signOut();
                   nav({ to: "/" });
                 }}
-                className="inline-flex items-center gap-1.5 rounded-full border border-rose/30 bg-cream/60 px-3 py-1 text-xs uppercase tracking-widest text-rose hover:bg-cream"
+                className="inline-flex items-center gap-1.5 rounded-full border border-rose/30 bg-cream/60 px-3 py-1 text-xs uppercase tracking-widest text-rose hover:bg-cream max-w-[140px] truncate"
                 title={user.email ?? ""}
               >
-                <LogOut className="h-3 w-3" />
-                {owner ?? "logout"}
+                <LogOut className="h-3 w-3 shrink-0" />
+                <span className="truncate">{name || "logout"}</span>
               </button>
             </>
           ) : (
