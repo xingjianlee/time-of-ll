@@ -193,14 +193,12 @@ export function useInbox() {
     void reload();
     if (!user) return;
     // realtime
-    const ch = supabase
-      .channel(`notif:${user.id}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
-        () => void reload(),
-      )
-      .subscribe();
+    const ch = supabase.channel(`notif:${user.id}-${Date.now()}`);
+    ch.on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
+      () => void reload(),
+    ).subscribe();
     return () => {
       void supabase.removeChannel(ch);
     };
