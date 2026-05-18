@@ -161,7 +161,7 @@ function InboxPage() {
           <div className="space-y-3">
             {items.length === 0 && (
               <div className="rounded-3xl border border-rose/20 bg-card/70 p-10 text-center text-wine/60">
-                还没有任何通知 🤍
+                暂无
               </div>
             )}
 
