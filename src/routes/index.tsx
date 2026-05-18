@@ -34,12 +34,24 @@ const ANNIVERSARY = "2026-02-24";
 const NAMES = "Sunny & Felix";
 
 function HomePage() {
-  const { items, add, update, remove } = usePhotos();
   const { user } = useAuth();
   const canEdit = !!user;
+  const { items, add, update, remove } = usePhotos();
   const [editMode, setEditMode] = useState(false);
   const [editing, setEditing] = useState<PhotoItem | null>(null);
   const [creating, setCreating] = useState(false);
+
+  if (!user) {
+    return (
+      <div className="relative min-h-screen overflow-hidden">
+        <Petals />
+        <div className="relative z-10">
+          <SiteHeader />
+          <PublicHero />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-screen overflow-hidden">
