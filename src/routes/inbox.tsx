@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import {
   Heart,
   Bell,
@@ -24,6 +24,7 @@ export const Route = createFileRoute("/inbox")({
     ],
   }),
   component: InboxPage,
+  errorComponent: InboxError,
 });
 
 const ICONS: Record<NotificationType, React.ComponentType<{ className?: string }>> = {
@@ -41,7 +42,9 @@ const ICONS: Record<NotificationType, React.ComponentType<{ className?: string }
 };
 
 function timeAgo(iso: string) {
-  const ms = Date.now() - new Date(iso).getTime();
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "刚刚";
+  const ms = Date.now() - date.getTime();
   const m = Math.floor(ms / 60000);
   if (m < 1) return "刚刚";
   if (m < 60) return `${m} 分钟前`;
@@ -50,6 +53,31 @@ function timeAgo(iso: string) {
   const d = Math.floor(h / 24);
   if (d < 7) return `${d} 天前`;
   return new Date(iso).toLocaleDateString("zh-CN");
+}
+
+function InboxError({ reset }: { error: Error; reset: () => void }) {
+  const router = useRouter();
+  return (
+    <div className="relative min-h-screen">
+      <Petals />
+      <div className="relative z-10">
+        <SiteHeader />
+        <div className="mx-auto max-w-md px-6 py-24 text-center">
+          <h1 className="font-display text-3xl text-wine">收信箱暂时没打开</h1>
+          <p className="mt-3 text-sm text-wine/70">可能有一条通知数据格式不完整，刷新后会重新读取。</p>
+          <button
+            onClick={() => {
+              router.invalidate();
+              reset();
+            }}
+            className="mt-6 inline-flex items-center gap-2 rounded-full bg-rose px-5 py-2.5 text-sm text-cream hover:bg-rose/90"
+          >
+            重新加载
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function InboxPage() {
