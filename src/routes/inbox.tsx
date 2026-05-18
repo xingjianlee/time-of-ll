@@ -1,5 +1,4 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
 import {
   Heart,
   Bell,
@@ -15,6 +14,7 @@ import {
 import { SiteHeader } from "@/components/SiteHeader";
 import { Petals } from "@/components/Petals";
 import { useAuth } from "@/lib/auth";
+import { useInbox, type Notification, type NotificationType } from "@/lib/couple";
 
 export const Route = createFileRoute("/inbox")({
   head: () => ({
@@ -26,75 +26,10 @@ export const Route = createFileRoute("/inbox")({
   component: InboxPage,
 });
 
-type NotifType =
-  | "couple_invite"
-  | "anniversary_milestone"
-  | "wish_added"
-  | "wish_completed"
-  | "gift_added"
-  | "gift_given"
-  | "photo_added"
-  | "timeline_added";
-
-interface Notif {
-  id: string;
-  type: NotifType;
-  title: string;
-  body: string;
-  actor?: string;
-  createdAt: string;
-  read: boolean;
-}
-
-const MOCK: Notif[] = [
-  {
-    id: "n1",
-    type: "couple_invite",
-    title: "Felix 邀请你绑定为情侣",
-    body: "felix@example.com 想和你共享一本手账。",
-    actor: "Felix",
-    createdAt: "刚刚",
-    read: false,
-  },
-  {
-    id: "n2",
-    type: "anniversary_milestone",
-    title: "🎉 在一起 100 天啦",
-    body: "今天是你们在一起的第 100 天，去主页看看时间吧。",
-    createdAt: "今天",
-    read: false,
-  },
-  {
-    id: "n3",
-    type: "wish_added",
-    title: "Felix 在心愿单加了一条",
-    body: "「一起去看一次海边日落」",
-    actor: "Felix",
-    createdAt: "昨天",
-    read: true,
-  },
-  {
-    id: "n4",
-    type: "gift_given",
-    title: "礼物罐：一条已送出",
-    body: "Felix 标记了「手写信」为已送出。",
-    actor: "Felix",
-    createdAt: "3 天前",
-    read: true,
-  },
-  {
-    id: "n5",
-    type: "photo_added",
-    title: "Sunny 新贴了一张拍立得",
-    body: "「在京都吃到的抹茶冰激凌」",
-    actor: "Sunny",
-    createdAt: "上周",
-    read: true,
-  },
-];
-
-const ICONS: Record<NotifType, React.ComponentType<{ className?: string }>> = {
+const ICONS: Record<NotificationType, React.ComponentType<{ className?: string }>> = {
   couple_invite: Users,
+  couple_invite_accepted: Heart,
+  couple_invite_declined: X,
   anniversary_milestone: Cake,
   wish_added: Star,
   wish_completed: Check,
@@ -102,10 +37,32 @@ const ICONS: Record<NotifType, React.ComponentType<{ className?: string }>> = {
   gift_given: Gift,
   photo_added: Camera,
   timeline_added: Camera,
+  system: Bell,
 };
+
+function timeAgo(iso: string) {
+  const ms = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(ms / 60000);
+  if (m < 1) return "刚刚";
+  if (m < 60) return `${m} 分钟前`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} 小时前`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d} 天前`;
+  return new Date(iso).toLocaleDateString("zh-CN");
+}
 
 function InboxPage() {
   const { user } = useAuth();
+  const {
+    items,
+    unread,
+    markRead,
+    markAllRead,
+    remove,
+    acceptInvite,
+    declineInvite,
+  } = useInbox();
 
   if (!user) {
     return (
@@ -128,32 +85,15 @@ function InboxPage() {
     );
   }
 
-  const [items, setItems] = useState<Notif[]>(MOCK);
-  const unread = items.filter((n) => !n.read).length;
-
-  const markAll = () => setItems((arr) => arr.map((n) => ({ ...n, read: true })));
-  const markOne = (id: string) =>
-    setItems((arr) => arr.map((n) => (n.id === id ? { ...n, read: true } : n)));
-  const dismiss = (id: string) =>
-    setItems((arr) => arr.filter((n) => n.id !== id));
-
-  const handleInvite = (id: string, accept: boolean) => {
-    markOne(id);
-    // Phase 2 会写库；这里只做视觉反馈
-    setItems((arr) =>
-      arr.map((n) =>
-        n.id === id
-          ? {
-              ...n,
-              title: accept ? "已接受邀请 ♡" : "已拒绝邀请",
-              body: accept
-                ? "你们已成为情侣，去主页看看吧。"
-                : "已通知对方。",
-              type: "anniversary_milestone",
-            }
-          : n,
-      ),
-    );
+  const handleInvite = async (n: Notification, accept: boolean) => {
+    const inviteId = (n.payload as { invite_id?: string })?.invite_id;
+    if (!inviteId) {
+      await markRead(n.id);
+      return;
+    }
+    const r = accept ? await acceptInvite(inviteId) : await declineInvite(inviteId);
+    if (r.error) alert(r.error);
+    await markRead(n.id);
   };
 
   return (
@@ -169,9 +109,7 @@ function InboxPage() {
               inbox
               <Heart className="h-3.5 w-3.5 fill-rose text-rose" />
             </div>
-            <h1 className="mt-3 font-display text-4xl md:text-5xl text-wine">
-              收信箱
-            </h1>
+            <h1 className="mt-3 font-display text-4xl md:text-5xl text-wine">收信箱</h1>
             <p className="mt-2 font-script text-xl text-wine/60">
               {unread > 0 ? `你有 ${unread} 条未读 ♡` : "全部已读 ♡"}
             </p>
@@ -183,7 +121,7 @@ function InboxPage() {
               全部通知 · {items.length}
             </div>
             <button
-              onClick={markAll}
+              onClick={() => void markAllRead()}
               disabled={unread === 0}
               className="inline-flex items-center gap-1.5 rounded-full border border-rose/30 bg-cream/60 px-3 py-1 text-xs uppercase tracking-widest text-rose hover:bg-cream disabled:opacity-40"
             >
@@ -200,17 +138,18 @@ function InboxPage() {
             )}
 
             {items.map((n) => {
-              const Icon = ICONS[n.type];
+              const Icon = ICONS[n.type] ?? Bell;
+              const read = !!n.read_at;
               return (
                 <div
                   key={n.id}
                   className={`group relative flex gap-4 rounded-2xl border p-5 backdrop-blur-sm transition ${
-                    n.read
+                    read
                       ? "border-rose/15 bg-card/50"
                       : "border-rose/40 bg-card/80 shadow-[0_15px_40px_-25px_oklch(0.4_0.1_20/0.3)]"
                   }`}
                 >
-                  {!n.read && (
+                  {!read && (
                     <span className="absolute right-4 top-4 h-2 w-2 rounded-full bg-rose" />
                   )}
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose/10 text-rose">
@@ -220,22 +159,22 @@ function InboxPage() {
                     <div className="flex items-baseline justify-between gap-3">
                       <h3 className="font-display text-lg text-wine">{n.title}</h3>
                       <span className="shrink-0 text-xs uppercase tracking-widest text-muted-foreground">
-                        {n.createdAt}
+                        {timeAgo(n.created_at)}
                       </span>
                     </div>
-                    <p className="mt-1 text-sm text-wine/70">{n.body}</p>
+                    {n.body && <p className="mt-1 text-sm text-wine/70">{n.body}</p>}
 
-                    {n.type === "couple_invite" && !n.read && (
+                    {n.type === "couple_invite" && !read && (
                       <div className="mt-3 flex gap-2">
                         <button
-                          onClick={() => handleInvite(n.id, true)}
+                          onClick={() => void handleInvite(n, true)}
                           className="inline-flex items-center gap-1.5 rounded-full bg-rose px-4 py-1.5 text-xs uppercase tracking-widest text-cream hover:bg-rose/90"
                         >
                           <Check className="h-3 w-3" />
                           同意
                         </button>
                         <button
-                          onClick={() => handleInvite(n.id, false)}
+                          onClick={() => void handleInvite(n, false)}
                           className="inline-flex items-center gap-1.5 rounded-full border border-rose/30 bg-cream/60 px-4 py-1.5 text-xs uppercase tracking-widest text-wine hover:bg-cream"
                         >
                           <X className="h-3 w-3" />
@@ -245,18 +184,12 @@ function InboxPage() {
                     )}
 
                     <div className="mt-3 flex gap-3 text-xs uppercase tracking-widest">
-                      {!n.read && (
-                        <button
-                          onClick={() => markOne(n.id)}
-                          className="text-rose hover:underline"
-                        >
+                      {!read && (
+                        <button onClick={() => void markRead(n.id)} className="text-rose hover:underline">
                           标记已读
                         </button>
                       )}
-                      <button
-                        onClick={() => dismiss(n.id)}
-                        className="text-wine/50 hover:text-rose"
-                      >
+                      <button onClick={() => void remove(n.id)} className="text-wine/50 hover:text-rose">
                         删除
                       </button>
                     </div>
@@ -265,10 +198,6 @@ function InboxPage() {
               );
             })}
           </div>
-
-          <p className="mt-8 text-center text-xs text-muted-foreground">
-            * 当前为静态预览，通知数据将在 Phase 2 接入。
-          </p>
         </div>
       </div>
     </div>
